@@ -27,10 +27,14 @@ class Transcriber:
         if self._mlx is not None:
             result = self._mlx.transcribe(audio, language=self.cfg.get("language"))
             return result.get("text", "").strip()
+        import dictionary
+        vocab = dictionary.words()
         segments, _ = self._model.transcribe(
             audio,
             language=self.cfg.get("language"),
             vad_filter=True,
             beam_size=1,
+            # bias recognition toward the user's custom vocabulary
+            initial_prompt=("Vocabulary: " + ", ".join(vocab) + ".") if vocab else None,
         )
         return " ".join(seg.text.strip() for seg in segments).strip()

@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VoiceBud</title>
+<style>
+@font-face{font-family:'Instrument Serif';src:url('assets/fonts/InstrumentSerif-Regular.ttf');font-weight:400}
+@font-face{font-family:'Instrument Serif';src:url('assets/fonts/InstrumentSerif-Italic.ttf');font-style:italic}
+:root{
+  --bg:#0c0c0f; --panel:#141419; --panel-2:#1a1a21; --line:rgba(255,255,255,.07);
+  --text:#e8e6e1; --muted:#8b8a93; --faint:#5b5a63;
+  --amber:#e8a33d; --amber-soft:rgba(232,163,61,.14); --green:#69c87e;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:13.5px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased;overflow:hidden;user-select:none}
+::selection{background:var(--amber-soft)}
+input,textarea,select{user-select:text;font:inherit;color:var(--text);background:var(--panel-2);
+  border:1px solid var(--line);border-radius:8px;padding:8px 11px;outline:none;
+  transition:border-color .18s, box-shadow .18s}
+input:focus,textarea:focus,select:focus{border-color:rgba(232,163,61,.55);box-shadow:0 0 0 3px rgba(232,163,61,.12)}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+button{font:inherit;cursor:pointer;border:none;border-radius:8px;transition:all .16s}
+
+/* grain + vignette atmosphere */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;opacity:.05;z-index:99;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E")}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:98;
+  background:radial-gradient(1200px 700px at 70% -10%, rgba(232,163,61,.05), transparent 55%)}
+
+.app{display:flex;height:100vh}
+
+/* ── sidebar ─────────────────────────────── */
+.side{width:216px;min-width:216px;border-right:1px solid var(--line);padding:52px 12px 16px;
+  display:flex;flex-direction:column;background:rgba(255,255,255,.014)}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 10px 22px}
+.brand .name{font:italic 23px var(--serif);letter-spacing:.2px}
+.brand .tier{font-size:9.5px;letter-spacing:.14em;color:var(--amber);border:1px solid rgba(232,163,61,.4);
+  border-radius:4px;padding:1px 6px;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:11px;background:none;color:var(--muted);
+  padding:8.5px 10px;border-radius:9px;text-align:left;font-size:13px}
+.nav button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+.nav button:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.nav button.on{color:var(--text);background:var(--panel-2);box-shadow:inset 2px 0 0 var(--amber)}
+.side .foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);
+  color:var(--faint);font-size:11px;display:flex;justify-content:space-between;align-items:center}
+.dot-live{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px}
+
+/* ── main ────────────────────────────────── */
+.main{flex:1;overflow-y:auto;padding:44px 44px 60px;position:relative}
+.page{max-width:880px;margin:0 auto}
+.page.leaving{animation:pgOut .16s ease forwards}
+@keyframes pgOut{to{opacity:0;transform:translateY(6px)}}
+.reveal{opacity:0;animation:up .5s cubic-bezier(.22,.9,.28,1) forwards;animation-delay:calc(var(--i,0)*70ms)}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+h1.pg{font:400 34px/1.1 var(--serif);margin-bottom:6px}
+h1.pg em{color:var(--amber)}
+.sub{color:var(--muted);margin-bottom:28px;font-size:13px}
+.k{font:400 15px var(--sans);font-weight:600;letter-spacing:.01em}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+.row2{display:grid;grid-template-columns:1fr 292px;gap:18px;align-items:start}
+
+/* hero */
+.hero{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);min-height:196px;
+  display:flex;flex-direction:column;justify-content:center;padding:30px 34px}
+.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.hero .shade{position:absolute;inset:0;z-index:1;
+  background:linear-gradient(92deg, rgba(10,10,13,.93) 22%, rgba(10,10,13,.55) 55%, rgba(10,10,13,.08))}
+.hero>*{position:relative;z-index:2}
+.hero h2{font:400 30px/1.15 var(--serif);margin-bottom:8px}
+.hero h2 em{font-style:italic;color:var(--amber)}
+.hero p{color:#c9c7c0;max-width:400px;font-size:13px}
+
+/* status strip */
+.status{display:flex;gap:14px;align-items:center;margin-top:18px}
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(0,0,0,.5);
+  border:1px solid var(--line);border-radius:99px;padding:7px 14px;font-size:12px;color:#d6d4cd;
+  backdrop-filter:blur(6px)}
+.pill .rec{width:8px;height:8px;border-radius:50%;background:var(--faint);transition:all .25s}
+.pill.live .rec{background:var(--amber);box-shadow:0 0 10px rgba(232,163,61,.8);animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.45}}
+.kbd{font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:rgba(255,255,255,.07);
+  border:1px solid var(--line);border-radius:5px;padding:2px 7px}
+
+/* stat tiles */
+.stat{padding:18px 20px 15px}
+.stat .n{font:400 40px/1 var(--serif);letter-spacing:.01em}
+.stat .n small{font-size:20px;color:var(--muted)}
+.stat .l{color:var(--muted);font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;margin-top:6px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+
+/* history rows */
+.hrow{display:flex;gap:16px;padding:14px 6px;border-bottom:1px solid var(--line);align-items:flex-start}
+.hrow:last-child{border-bottom:none}
+.hrow .t{color:var(--faint);font-size:11px;font-family:ui-monospace,'SF Mono',monospace;
+  padding-top:3px;min-width:60px}
+.hrow .x{flex:1;color:#d2d0ca;user-select:text}
+.hrow .w{color:var(--faint);font-size:11px;padding-top:3px;white-space:nowrap}
+.iconbtn{background:none;color:var(--faint);padding:3px 7px;border-radius:6px;font-size:12px}
+.iconbtn:hover{color:var(--amber);background:var(--amber-soft)}
+.dategrp{color:var(--faint);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  margin:20px 0 4px;padding-left:6px}
+
+/* bar chart */
+.chart{display:flex;align-items:flex-end;gap:7px;height:120px;padding:6px 4px 0}
+.chart .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end}
+.chart .bar{width:100%;border-radius:4px 4px 2px 2px;background:linear-gradient(180deg,var(--amber),#a9720f);
+  min-height:2px;opacity:.85;transform-origin:bottom;animation:grow .7s cubic-bezier(.22,.9,.28,1) backwards}
+.chart .b:nth-child(odd) .bar{opacity:.6}
+@keyframes grow{from{transform:scaleY(0)}}
+.chart .d{color:var(--faint);font-size:9.5px}
+
+/* voice insight cards */
+.vgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.vcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.vcard .lab{color:var(--faint);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:9px}
+.vcard .big{font:400 24px/1.2 var(--serif)}
+.vcard .big em{color:var(--amber)}
+.profileCard{grid-column:1/-1;background:linear-gradient(120deg,var(--panel) 55%, rgba(232,163,61,.07));
+  display:flex;justify-content:space-between;align-items:center;gap:20px}
+.profileCard .big{font-size:32px}
+
+/* list pages (dictionary / snippets) */
+.addbar{display:flex;gap:10px;margin-bottom:8px}
+.addbar input{flex:1}
+.btn{background:var(--amber);color:#191204;font-weight:600;padding:8px 16px;border-radius:8px}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.btn.ghost:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.btn:disabled{opacity:.4;cursor:default;filter:none}
+.lrow{display:flex;align-items:center;gap:14px;padding:13px 6px;border-bottom:1px solid var(--line)}
+.lrow:last-child{border-bottom:none}
+.lrow .main-t{flex:1;user-select:text}
+.lrow .misp{color:var(--faint);font-size:12px}
+.lrow .misp b{color:var(--muted);font-weight:500}
+.hits{color:var(--faint);font-size:11px;white-space:nowrap}
+.toggleRow{display:flex;align-items:center;gap:10px;margin:8px 0 12px;color:var(--muted);font-size:12.5px}
+
+/* switch */
+.sw{position:relative;width:36px;height:21px;border-radius:99px;background:rgba(255,255,255,.13);
+  cursor:pointer;transition:background .2s;flex:none}
+.sw::after{content:'';position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;
+  background:#fff;transition:transform .2s cubic-bezier(.3,.9,.3,1.2)}
+.sw.on{background:var(--amber)}
+.sw.on::after{transform:translateX(15px)}
+
+/* scratchpad */
+.pad{display:grid;grid-template-columns:230px 1fr;gap:16px;min-height:430px}
+.noteList{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow-y:auto;max-height:60vh}
+.noteItem{padding:12px 15px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+.noteItem:hover{background:rgba(255,255,255,.03)}
+.noteItem.on{background:var(--panel-2);box-shadow:inset 2px 0 0 var(--amber)}
+.noteItem .nt{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.noteItem .nd{color:var(--faint);font-size:11px;margin-top:2px}
+.editor{display:flex;flex-direction:column;gap:10px}
+.editor input{font:400 20px var(--serif);background:transparent;border:none;box-shadow:none;padding:4px 2px}
+.editor textarea{flex:1;min-height:330px;resize:none;line-height:1.7;background:var(--panel);user-select:text}
+
+/* settings */
+.set{display:flex;flex-direction:column;gap:14px}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:15px 20px}
+.srow .sl .st{font-weight:600}
+.srow .sl .sd{color:var(--muted);font-size:12px;margin-top:2px;max-width:430px}
+.srow select,.srow input{min-width:190px}
+.sec{color:var(--faint);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;margin:14px 0 -4px 4px}
+
+/* toast */
+#toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,20px);opacity:0;z-index:200;
+  background:#1d1d24;border:1px solid var(--line);color:var(--text);padding:10px 20px;border-radius:99px;
+  font-size:12.5px;transition:all .3s cubic-bezier(.3,.9,.3,1.1);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast .amber{color:var(--amber)}
+.empty{color:var(--faint);text-align:center;padding:36px 0;font-size:12.5px}
+.searchbar{margin-bottom:6px;display:flex;gap:10px}
+.searchbar input{flex:1}
+::-webkit-scrollbar{width:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.09);border-radius:99px;border:2px solid var(--bg)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="name">VoiceBud</span><span class="tier">Studio</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot"><span><span class="dot-live"></span>On-device</span><span id="ver">v2.0</span></div>
+  </aside>
+  <main class="main"><div id="page" class="page"></div></main>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ── bridge ─────────────────────────────── */
+const native = !!(window.webkit?.messageHandlers?.vb);
+let seq = 0; const pending = {};
+window.__vbDeliver = (id, p) => { pending[id]?.(p); delete pending[id]; };
+function call(op, data) {
+  return new Promise(res => {
+    if (!native) return res(mock(op, data));
+    const id = ++seq; pending[id] = res;
+    window.webkit.messageHandlers.vb.postMessage({id, op, data: data || {}});
+  });
+}
+/* demo data so the page also renders in a plain browser */
+function mock(op) {
+  if (op !== 'init') return {};
+  const daily = [...Array(14)].map((_, i) => ({day:'MTWTFSS'[i % 7], words: Math.floor(Math.random()*900)}));
+  return {version:'2.0', launch_login:false,
+    config:{hotkey:{key:'ctrl+cmd',mode:'hold'},stt:{model:'tiny.en'},inject:{restore_clipboard:true},
+      llm:{enabled:true,mode:'auto',api:{api_key:'',model:'llama-3.1-8b-instant'},model:'qwen3:4b-instruct'},
+      ui:{flow_bar:true,sounds:true,mute_music:false}},
+    status:{recording:false,cleanup:'ollama',model:'tiny.en',hotkey:'ctrl+cmd',mode:'hold'},
+    history:[{ts:Date.now()/1000-500,text:'Retrieve the audio from SupaBase instead of regenerating it every time.',words:11,duration_s:6}],
+    stats:{total_words:74023,sessions:512,wpm:157,streak:4,daily,
+      voice:{profile:'Steady Drafter',profile_blurb:'You dictate in measured, sentence-sized passes.',
+        top_word:{word:'supabase',count:41},catchphrase:'push to main',peak:'Tuesday at 1 p.m.',avg_words:19}},
+    dictionary:[{word:'SupaBase',misspelling:'super base',hits:12}], most_corrected:{word:'SupaBase',hits:12},
+    snippets:[{trigger:'my email address',expansion:'niko@example.com',hits:7}], notes:[]};
+}
+
+/* ── state ─────────────────────────────── */
+let S = null, cur = 'dictation', currentNote = null, noteTimer = null;
+
+const ICONS = {
+  dictation:'<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  history:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  insights:'<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
+  dictionary:'<svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 17H6a2 2 0 0 0-2 2"/></svg>',
+  snippets:'<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8 20 19M8.5 16 20 5"/></svg>',
+  scratchpad:'<svg viewBox="0 0 24 24"><path d="M4 4h16v12l-4 4H4z M16 20v-4h4"/></svg>',
+  settings:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
+};
+const PAGES = ['dictation','history','insights','dictionary','snippets','scratchpad','settings'];
+const TITLES = {dictation:'Dictation',history:'History',insights:'Insights',dictionary:'Dictionary',
+  snippets:'Snippets',scratchpad:'Scratchpad',settings:'Settings'};
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+const esc = s => (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN = n => n >= 10000 ? (n/1000).toFixed(1).replace(/\.0$/,'') + 'K' : (n||0).toLocaleString();
+const fmtTime = ts => new Date(ts*1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+const fmtDate = ts => new Date(ts*1000).toLocaleDateString([], {month:'long', day:'numeric', year:'numeric'});
+
+/* ── nav + transitions ─────────────────── */
+function buildNav() {
+  document.getElementById('nav').innerHTML = PAGES.map(p =>
+    `<button data-p="${p}" class="${p===cur?'on':''}">${ICONS[p]}${TITLES[p]}</button>`).join('');
+  document.querySelectorAll('#nav button').forEach(b => b.onclick = () => go(b.dataset.p));
+}
+function go(p) {
+  if (p === cur) return;
+  cur = p; buildNav();
+  const el = document.getElementById('page');
+  el.classList.add('leaving');
+  setTimeout(() => { el.classList.remove('leaving'); render(); }, 160);
+}
+function render() {
+  const el = document.getElementById('page');
+  el.innerHTML = VIEWS[cur]();
+  WIRE[cur]?.();
+}
+
+/* ── views ─────────────────────────────── */
+const VIEWS = {
+dictation() {
+  const st = S.stats, v = st.voice;
+  const recent = S.history.slice(0, 5);
+  return `
+  <div class="reveal" style="--i:0">
+    <h1 class="pg">Ready when <em>you</em> are.</h1>
+    <p class="sub">Everything below happened on this Mac. Nothing leaves it.</p>
+  </div>
+  <div class="row2">
+    <div>
+      <div class="hero reveal" style="--i:1">
+        <img src="assets/banner.jpg" alt="">
+        <div class="shade"></div>
+        <h2>Speak. <em>It types.</em></h2>
+        <p>Hold the chord in any app, talk naturally, release. Clean text lands at your cursor.</p>
+        <div class="status">
+          <span class="pill" id="recpill"><span class="rec"></span><span id="recword">Standing by</span></span>
+          <span class="pill"><span class="kbd" id="hotkeyLabel"></span>&nbsp;${S.status.mode === 'hold' ? 'hold to talk' : 'press to toggle'}</span>
+        </div>
+      </div>
+      <div class="card reveal" style="--i:2;margin-top:18px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <span class="k">Recent dictations</span>
+          <button class="iconbtn" onclick="go('history')">View all →</button>
+        </div>
+        <div id="recentList">${recent.length ? recent.map(hRow).join('') : '<div class="empty">Hold the chord and say something — it appears here.</div>'}</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card stat reveal" style="--i:2"><div class="n">${fmtN(st.total_words)}</div><div class="l">Total words</div></div>
+      <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'—'}</div><div class="l">Words / minute</div></div>
+      <div class="card stat reveal" style="--i:4"><div class="n">${st.streak}<small> day${st.streak===1?'':'s'}</small></div><div class="l">Streak</div></div>
+      <div class="card reveal" style="--i:5">
+        <div class="lab" style="color:var(--faint);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px">Voice profile</div>
+        <div style="font:400 21px var(--serif)">${esc(v.profile)}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:5px">${esc(v.profile_blurb)}</div>
+        <button class="iconbtn" style="margin-top:8px;padding-left:0" onclick="go('insights')">Open insights →</button>
+      </div>
+    </div>
+  </div>`;
+},
+
+history() {
+  return `
+  <div class="reveal" style="--i:0"><h1 class="pg">History</h1>
+  <p class="sub">Every dictation, stored locally in a file you own.</p></div>
+  <div class="searchbar reveal" style="--i:1">
+    <input id="hq" placeholder="Search transcripts…">
+    <button class="btn ghost" id="clearH">Clear all</button>
+  </div>
+  <div class="card reveal" style="--i:2;padding:6px 20px" id="hlist"></div>`;
+},
+
+insights() {
+  const st = S.stats, v = st.voice;
+  const max = Math.max(...st.daily.map(d => d.words), 1);
+  const mc = S.most_corrected;
+  return `
+  <div class="reveal" style="--i:0"><h1 class="pg">Insights</h1>
+  <p class="sub">Computed on this Mac from your local history — never uploaded.</p></div>
+  <div class="tiles">
+    <div class="card stat reveal" style="--i:1"><div class="n">${fmtN(st.total_words)}</div><div class="l">Total words</div></div>
+    <div class="card stat reveal" style="--i:2"><div class="n">${st.sessions}</div><div class="l">Dictations</div></div>
+    <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'—'}</div><div class="l">Words / minute</div></div>
+    <div class="card stat reveal" style="--i:4"><div class="n">${st.streak}<small> d</small></div><div class="l">Streak</div></div>
+  </div>
+  <div class="card reveal" style="--i:5;margin-bottom:18px">
+    <span class="k">Last 14 days</span>
+    <div class="chart">${st.daily.map((d,i) =>
+      `<div class="b"><div class="bar" style="height:${Math.round(d.words/max*100)}%;animation-delay:${i*40}ms" title="${d.words} words"></div><div class="d">${d.day[0]}</div></div>`).join('')}</div>
+  </div>
+  <div class="vgrid">
+    <div class="vcard profileCard reveal" style="--i:6">
+      <div><div class="lab">Voice profile</div>
+        <div class="big">You're a <em>${esc(v.profile)}</em></div>
+        <div style="color:var(--muted);font-size:12.5px;margin-top:6px;max-width:420px">${esc(v.profile_blurb)} Average dictation: ${v.avg_words} words.</div></div>
+      <div style="font:italic 64px var(--serif);color:rgba(232,163,61,.25);padding-right:10px">”</div>
+    </div>
+    <div class="vcard reveal" style="--i:7"><div class="lab">Catchphrase</div>
+      <div class="big">${v.catchphrase ? `“${esc(v.catchphrase)}”` : '<span style="color:var(--faint)">Not enough data yet</span>'}</div></div>
+    <div class="vcard reveal" style="--i:8"><div class="lab">Most used word</div>
+      <div class="big">${v.top_word ? `${esc(v.top_word.word)} <span style="font-size:14px;color:var(--muted)">× ${v.top_word.count}</span>` : '<span style="color:var(--faint)">Not enough data yet</span>'}</div></div>
+    <div class="vcard reveal" style="--i:9"><div class="lab">Most corrected word</div>
+      <div class="big">${mc ? `${esc(mc.word)} <span style="font-size:14px;color:var(--muted)">× ${mc.hits}</span>` : '<span style="color:var(--faint)">No corrections yet</span>'}</div></div>
+    <div class="vcard reveal" style="--i:10"><div class="lab">Peak time</div>
+      <div class="big">${v.peak ? esc(v.peak) : '<span style="color:var(--faint)">Not enough data yet</span>'}</div></div>
+  </div>`;
+},
+
+dictionary() {
+  return `
+  <div class="reveal" style="--i:0"><h1 class="pg">Dictionary</h1>
+  <p class="sub">VoiceBud spells the way you do. Custom terms steer recognition; misspelling pairs are fixed automatically after transcription.</p></div>
+  <div class="card reveal" style="--i:1;margin-bottom:16px">
+    <div class="toggleRow"><div class="sw" id="mispSw"></div><span>Correct a misspelling — map what the engine hears to what you mean</span></div>
+    <div class="addbar" id="dictAdd">
+      <input id="dw" placeholder="Word or name — e.g. SupaBase">
+      <input id="dm" placeholder="What it gets heard as — e.g. super base" style="display:none">
+      <button class="btn" id="dAdd">Add word</button>
+    </div>
+  </div>
+  <div class="card reveal" style="--i:2;padding:6px 20px" id="dlist"></div>`;
+},
+
+snippets() {
+  return `
+  <div class="reveal" style="--i:0"><h1 class="pg">Snippets</h1>
+  <p class="sub">The stuff you shouldn't have to re-type. Say the trigger phrase; the saved text is typed instead.</p></div>
+  <div class="card reveal" style="--i:1;margin-bottom:16px">
+    <div class="addbar" style="flex-direction:column">
+      <input id="strig" placeholder='Trigger phrase — e.g. "my email address"'>
+      <textarea id="sexp" rows="3" placeholder="Expands to — e.g. nikostavros10@gmail.com"></textarea>
+      <div style="display:flex;justify-content:flex-end"><button class="btn" id="sAdd">Save snippet</button></div>
+    </div>
+  </div>
+  <div class="card reveal" style="--i:2;padding:6px 20px" id="slist"></div>`;
+},
+
+scratchpad() {
+  return `
+  <div class="reveal" style="--i:0"><h1 class="pg">Scratchpad</h1>
+  <p class="sub">For quick thoughts you want to come back to. Click into the note and dictate straight into it.</p></div>
+  <div class="pad reveal" style="--i:1">
+    <div>
+      <button class="btn" style="width:100%;margin-bottom:10px" id="newNote">New note</button>
+      <div class="noteList" id="noteList"></div>
+    </div>
+    <div class="card editor" id="editor" style="display:none">
+      <input id="ntitle" placeholder="Untitled">
+      <textarea id="nbody" placeholder="Click here, hold the chord, and talk…"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--faint);font-size:11px" id="nstatus"></span>
+        <button class="btn ghost" id="delNote">Delete note</button>
+      </div>
+    </div>
+    <div class="card empty" id="noNote" style="display:flex;align-items:center;justify-content:center">Select or create a note.</div>
+  </div>`;
+},
+
+settings() {
+  const c = S.config, ui = c.ui, llm = c.llm;
+  const sw = (id, on) => `<div class="sw ${on?'on':''}" id="${id}"></div>`;
+  return `
+  <div class="reveal" style="--i:0"><h1 class="pg">Settings</h1>
+  <p class="sub">Engine changes restart VoiceBud automatically. Everything else applies instantly.</p></div>
+  <div class="set">
+    <div class="sec reveal" style="--i:1">General</div>
+    <div class="card srow reveal" style="--i:1"><div class="sl"><div class="st">Shortcut</div>
+      <div class="sd">Chord of ctrl, cmd, alt, shift — joined with “+” — or a single key (alt_r, f13).</div></div>
+      <input id="setKey" value="${esc(c.hotkey.key)}" style="max-width:170px"></div>
+    <div class="card srow reveal" style="--i:2"><div class="sl"><div class="st">Mode</div>
+      <div class="sd">Hold: record while held. Toggle: press to start, press to stop.</div></div>
+      <select id="setMode"><option value="hold" ${c.hotkey.mode==='hold'?'selected':''}>Hold</option>
+      <option value="toggle" ${c.hotkey.mode==='toggle'?'selected':''}>Toggle</option></select></div>
+    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Accuracy</div>
+      <div class="sd">Bigger models are more accurate and slower. tiny.en is instant; small is a good step up.</div></div>
+      <select id="setModel">${['tiny.en','base','small','medium','large-v3'].map(m =>
+        `<option ${c.stt.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
+
+    <div class="sec reveal" style="--i:4">Cleanup</div>
+    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Cleanup engine</div>
+      <div class="sd">Auto: cloud API if a key is set, else local Ollama, else raw transcripts.</div></div>
+      <select id="setLlmMode">${['auto','api','ollama'].map(m =>
+        `<option ${ (llm.mode||'auto')===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Groq API key</div>
+      <div class="sd">Free at console.groq.com. Cleanup only — your audio never goes anywhere.</div></div>
+      <input id="setKeyApi" type="password" placeholder="gsk_…" value="${esc(llm.api?.api_key||'')}"></div>
+
+    <div class="sec reveal" style="--i:6">App</div>
+    <div class="card srow reveal" style="--i:6"><div class="sl"><div class="st">Show dictation bar at all times</div>
+      <div class="sd">The floating pill at the bottom of the screen with your shortcut.</div></div>${sw('swBar', ui.flow_bar)}</div>
+    <div class="card srow reveal" style="--i:7"><div class="sl"><div class="st">Dictation sounds</div>
+      <div class="sd">A soft tick when recording starts and stops.</div></div>${sw('swSnd', ui.sounds)}</div>
+    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Mute music while dictating</div>
+      <div class="sd">Pauses Music or Spotify while you talk, resumes after.</div></div>${sw('swMus', ui.mute_music)}</div>
+    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Launch at login</div>
+      <div class="sd">Start VoiceBud automatically when you log in.</div></div>${sw('swLog', S.launch_login)}</div>
+
+    <div class="reveal" style="--i:10;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
+      <button class="btn" id="saveSet">Save changes</button>
+    </div>
+  </div>`;
+},
+};
+
+/* shared history row */
+function hRow(h) {
+  return `<div class="hrow"><span class="t">${fmtTime(h.ts)}</span>
+    <span class="x">${esc(h.text)}</span><span class="w">${h.words}w</span>
+    <button class="iconbtn" onclick="copyText(this)" data-t="${esc(h.text)}">Copy</button></div>`;
+}
+window.copyText = btn => { call('copy', {text: btn.dataset.t}); toast('Copied to clipboard'); };
+window.go = go;
+
+/* ── wiring ────────────────────────────── */
+const WIRE = {
+dictation() {
+  document.getElementById('hotkeyLabel').textContent =
+    S.status.hotkey.split('+').map(k => ({ctrl:'⌃',cmd:'⌘',alt:'⌥',shift:'⇧'}[k] || k)).join(' + ');
+  pollStatus();
+},
+history() {
+  const list = document.getElementById('hlist'), q = document.getElementById('hq');
+  const draw = () => {
+    const needle = q.value.toLowerCase();
+    const items = S.history.filter(h => h.text.toLowerCase().includes(needle));
+    if (!items.length) { list.innerHTML = '<div class="empty">Nothing here yet.</div>'; return; }
+    let out = '', lastDay = '';
+    for (const h of items) {
+      const d = fmtDate(h.ts);
+      if (d !== lastDay) { out += `<div class="dategrp">${d}</div>`; lastDay = d; }
+      out += hRow(h);
+    }
+    list.innerHTML = out;
+  };
+  q.oninput = draw; draw();
+  document.getElementById('clearH').onclick = async () => {
+    await call('history.clear'); S.history = []; draw(); toast('History cleared');
+  };
+},
+insights() {},
+dictionary() {
+  const sw = document.getElementById('mispSw'), dm = document.getElementById('dm');
+  sw.onclick = () => { sw.classList.toggle('on'); dm.style.display = sw.classList.contains('on') ? '' : 'none'; };
+  const draw = () => {
+    const l = document.getElementById('dlist');
+    l.innerHTML = S.dictionary.length ? S.dictionary.map(e =>
+      `<div class="lrow"><span class="main-t">${esc(e.word)}
+        ${e.misspelling ? `<div class="misp">heard as <b>${esc(e.misspelling)}</b></div>` : ''}</span>
+        <span class="hits">${e.hits ? e.hits + ' fixes' : ''}</span>
+        <button class="iconbtn" data-w="${esc(e.word)}">Remove</button></div>`).join('')
+      : '<div class="empty">Add names, jargon, product terms — anything the engine should spell your way.</div>';
+    l.querySelectorAll('.iconbtn').forEach(b => b.onclick = async () => {
+      S.dictionary = (await call('dict.remove', {word: b.dataset.w})).dictionary; draw();
+    });
+  };
+  document.getElementById('dAdd').onclick = async () => {
+    const w = document.getElementById('dw').value.trim(); if (!w) return;
+    const m = sw.classList.contains('on') ? dm.value.trim() : '';
+    S.dictionary = (await call('dict.add', {word: w, misspelling: m})).dictionary;
+    document.getElementById('dw').value = ''; dm.value = ''; draw(); toast('Added to dictionary');
+  };
+  draw();
+},
+snippets() {
+  const draw = () => {
+    const l = document.getElementById('slist');
+    l.innerHTML = S.snippets.length ? S.snippets.map(s =>
+      `<div class="lrow"><span class="main-t">“${esc(s.trigger)}”
+        <div class="misp">→ ${esc(s.expansion.length > 90 ? s.expansion.slice(0,90) + '…' : s.expansion)}</div></span>
+        <span class="hits">${s.hits ? s.hits + ' uses' : ''}</span>
+        <button class="iconbtn" data-t="${esc(s.trigger)}">Remove</button></div>`).join('')
+      : '<div class="empty">Save an email, a link, an intro — then just say the trigger.</div>';
+    l.querySelectorAll('.iconbtn').forEach(b => b.onclick = async () => {
+      S.snippets = (await call('snip.remove', {trigger: b.dataset.t})).snippets; draw();
+    });
+  };
+  document.getElementById('sAdd').onclick = async () => {
+    const t = document.getElementById('strig').value.trim();
+    const e = document.getElementById('sexp').value.trim();
+    if (!t || !e) return;
+    S.snippets = (await call('snip.add', {trigger: t, expansion: e})).snippets;
+    document.getElementById('strig').value = ''; document.getElementById('sexp').value = '';
+    draw(); toast('Snippet saved');
+  };
+  draw();
+},
+scratchpad() {
+  const list = document.getElementById('noteList'), ed = document.getElementById('editor'),
+        none = document.getElementById('noNote');
+  const draw = () => {
+    list.innerHTML = S.notes.length ? S.notes.map(n =>
+      `<div class="noteItem ${currentNote===n.id?'on':''}" data-id="${n.id}">
+        <div class="nt">${esc(n.title || 'Untitled')}</div>
+        <div class="nd">${new Date(n.updated*1000).toLocaleDateString()}</div></div>`).join('')
+      : '<div class="empty">No notes yet.</div>';
+    list.querySelectorAll('.noteItem').forEach(el => el.onclick = () => openNote(el.dataset.id));
+  };
+  const openNote = id => {
+    currentNote = id;
+    const n = S.notes.find(x => x.id === id); if (!n) return;
+    ed.style.display = ''; none.style.display = 'none';
+    document.getElementById('ntitle').value = n.title;
+    document.getElementById('nbody').value = n.body;
+    document.getElementById('nstatus').textContent = 'Saved';
+    draw();
+  };
+  const scheduleSave = () => {
+    document.getElementById('nstatus').textContent = 'Saving…';
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(async () => {
+      const r = await call('note.save', {id: currentNote,
+        title: document.getElementById('ntitle').value, body: document.getElementById('nbody').value});
+      currentNote = r.id; S.notes = r.notes;
+      document.getElementById('nstatus').textContent = 'Saved'; draw();
+    }, 500);
+  };
+  document.getElementById('ntitle').oninput = scheduleSave;
+  document.getElementById('nbody').oninput = scheduleSave;
+  document.getElementById('newNote').onclick = async () => {
+    const r = await call('note.save', {id: null, title: '', body: ''});
+    currentNote = r.id; S.notes = r.notes; draw(); openNote(r.id);
+    document.getElementById('ntitle').focus();
+  };
+  document.getElementById('delNote').onclick = async () => {
+    if (!currentNote) return;
+    S.notes = (await call('note.delete', {id: currentNote})).notes;
+    currentNote = null; ed.style.display = 'none'; none.style.display = 'flex'; draw();
+  };
+  draw();
+},
+settings() {
+  ['swBar','swSnd','swMus','swLog'].forEach(id => {
+    const el = document.getElementById(id);
+    el.onclick = () => el.classList.toggle('on');
+  });
+  document.getElementById('saveSet').onclick = async () => {
+    const partial = {
+      hotkey: {key: document.getElementById('setKey').value.trim(),
+               mode: document.getElementById('setMode').value},
+      stt: {model: document.getElementById('setModel').value},
+      llm: {mode: document.getElementById('setLlmMode').value,
+            api: {api_key: document.getElementById('setKeyApi').value.trim()}},
+      ui: {flow_bar: document.getElementById('swBar').classList.contains('on'),
+           sounds: document.getElementById('swSnd').classList.contains('on'),
+           mute_music: document.getElementById('swMus').classList.contains('on'),
+           launch_login: document.getElementById('swLog').classList.contains('on')},
+    };
+    const r = await call('settings.save', partial);
+    S.launch_login = partial.ui.launch_login;
+    Object.assign(S.config.hotkey, partial.hotkey);
+    Object.assign(S.config.stt, partial.stt);
+    toast(r.restarting ? 'Saved — <span class="amber">restarting the engine…</span>' : 'Saved');
+  };
+},
+};
+
+/* live status pulse on the dictation page */
+let statusTimer = null;
+function pollStatus() {
+  clearInterval(statusTimer);
+  statusTimer = setInterval(async () => {
+    if (cur !== 'dictation') { clearInterval(statusTimer); return; }
+    const st = await call('status');
+    const pill = document.getElementById('recpill'), word = document.getElementById('recword');
+    if (!pill) return;
+    pill.classList.toggle('live', !!st.recording);
+    word.textContent = st.recording ? 'Recording' : 'Standing by';
+  }, 600);
+}
+
+/* periodic data refresh so new dictations appear while the window is open */
+setInterval(async () => {
+  if (!S || !native) return;
+  const r = await call('refresh');
+  S.history = r.history; S.stats = r.stats; S.most_corrected = r.most_corrected;
+  if (cur === 'dictation' || cur === 'history') {
+    const el = document.getElementById(cur === 'history' ? 'hq' : null);
+    if (!el || !el.value) render();
+  }
+}, 5000);
+
+/* boot */
+(async () => {
+  S = await call('init');
+  document.getElementById('ver').textContent = 'v' + S.version;
+  buildNav(); render();
+})();
+</script>
+</body>
+</html>

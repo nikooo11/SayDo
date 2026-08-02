@@ -17,6 +17,7 @@ cp -RL "$MODEL_CACHE"/*/ build/model-staging/
   --osx-bundle-identifier com.nikooo11.voicebud \
   --add-data "config.yaml:." \
   --add-data "build/model-staging:models/faster-whisper-tiny.en" \
+  --add-data "ui:ui" \
   --collect-all faster_whisper \
   main.py
 

@@ -41,3 +41,8 @@ audio:
 inject:
   method: paste               # paste (clipboard + synthesized Cmd+V) | type (per-char CGEvent)
   restore_clipboard: true
+
+ui:
+  flow_bar: true              # persistent dictation pill at the bottom of the screen
+  sounds: true                # soft tick when recording starts/stops
+  mute_music: false           # pause Music/Spotify while dictating
