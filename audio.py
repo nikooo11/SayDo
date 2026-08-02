@@ -7,7 +7,8 @@ import sounddevice as sd
 
 
 class Recorder:
-    def __init__(self, sample_rate=16000, channels=1, preroll_ms=500, blocksize=320):
+    def __init__(self, sample_rate=16000, channels=1, preroll_ms=500, blocksize=320,
+                 device=None):
         self.sample_rate = sample_rate
         self.channels = channels
         self.blocksize = blocksize
@@ -17,17 +18,18 @@ class Recorder:
         self._recording = False
         self.level = 0.0
         self._lock = threading.Lock()
+        kwargs = {"device": device} if device is not None else {}
         self._stream = sd.InputStream(
             samplerate=sample_rate, channels=channels, dtype="float32",
-            blocksize=blocksize, callback=self._callback,
+            blocksize=blocksize, callback=self._callback, **kwargs,
         )
 
     def _callback(self, indata, frames, time_info, status):
         block = indata.copy()
+        self.level = float(np.sqrt((block ** 2).mean()))  # RMS for waveform + level meter
         with self._lock:
             if self._recording:
                 self._chunks.append(block)
-                self.level = float(np.sqrt((block ** 2).mean()))  # RMS for the waveform UI
             else:
                 self._preroll.append(block)
 

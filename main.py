@@ -69,6 +69,18 @@ def rename_app():
         pass
 
 
+def resolve_input_device(name):
+    """Config device name -> sounddevice index; None = system default."""
+    if not name:
+        return None
+    import sounddevice as sd
+    for i, d in enumerate(sd.query_devices()):
+        if d["max_input_channels"] > 0 and d["name"] == name:
+            return i
+    print(f'WARNING: input device "{name}" not found; using system default')
+    return None
+
+
 _MUSIC_APPS = ("Music", "Spotify")
 
 
@@ -128,6 +140,7 @@ def main():
         sample_rate=cfg["audio"]["sample_rate"],
         channels=cfg["audio"]["channels"],
         preroll_ms=cfg["audio"]["preroll_ms"],
+        device=resolve_input_device(cfg["audio"].get("device")),
     )
     rec.start_stream()
 
@@ -189,6 +202,11 @@ def main():
 
     Controller.cfg = cfg
     dashboard = Dashboard(Controller)
+    # debug/automation hook: open the dashboard at launch if the flag file exists
+    _flag = Path.home() / "Library" / "Application Support" / "VoiceBud" / ".open-dashboard"
+    if _flag.exists():
+        _flag.unlink(missing_ok=True)
+        AppHelper.callAfter(dashboard.open)
     menu_target = MenuTarget.alloc().initWithDashboard_(dashboard)
 
     # menu bar icon so VoiceBud is visible/controllable like a normal app

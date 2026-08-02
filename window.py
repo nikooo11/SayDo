@@ -69,6 +69,8 @@ class _Bridge(NSObject):
             }
         if op == "status":
             return c.status()
+        if op == "audio.devices":
+            return {"devices": _input_devices()}
         if op == "refresh":
             return {"history": list(reversed(history.read_all())),
                     "stats": history.stats(),
@@ -104,6 +106,22 @@ class _Bridge(NSObject):
             c.restart()
             return {"ok": True}
         return {"error": f"unknown op {op}"}
+
+
+def _input_devices():
+    """Input devices for the settings mic picker, deduped by name."""
+    try:
+        import sounddevice as sd
+        default_idx = sd.default.device[0]
+        seen, out = set(), []
+        for i, d in enumerate(sd.query_devices()):
+            if d["max_input_channels"] <= 0 or d["name"] in seen:
+                continue
+            seen.add(d["name"])
+            out.append({"index": i, "name": d["name"], "default": i == default_idx})
+        return out
+    except Exception:
+        return []
 
 
 class Dashboard:

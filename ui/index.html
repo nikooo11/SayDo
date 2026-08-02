@@ -170,6 +170,14 @@ h1.pg em{color:var(--amber)}
 .srow .sl .sd{color:var(--muted);font-size:12px;margin-top:2px;max-width:430px}
 .srow select,.srow input{min-width:190px}
 .sec{color:var(--faint);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;margin:14px 0 -4px 4px}
+.hkbtn{min-width:190px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+  padding:8px 11px;font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px}
+.hkbtn:hover{border-color:rgba(255,255,255,.2)}
+.hkbtn.listen{border-color:rgba(232,163,61,.7);color:var(--amber);box-shadow:0 0 0 3px rgba(232,163,61,.12)}
+.hkbtn.bad{border-color:rgba(224,90,90,.8);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.meter{height:4px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.meter div{height:100%;width:0;border-radius:99px;background:var(--amber);transition:width .25s linear}
 
 /* toast */
 #toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,20px);opacity:0;z-index:200;
@@ -209,10 +217,15 @@ function call(op, data) {
 }
 /* demo data so the page also renders in a plain browser */
 function mock(op) {
+  if (op === 'status') return {recording:false, level: 0.02 + Math.random()*0.08};
+  if (op === 'audio.devices') return {devices:[
+    {index:0, name:'MacBook Pro Microphone', default:true},
+    {index:2, name:'External USB Mic', default:false}]};
   if (op !== 'init') return {};
   const daily = [...Array(14)].map((_, i) => ({day:'MTWTFSS'[i % 7], words: Math.floor(Math.random()*900)}));
   return {version:'2.0', launch_login:false,
     config:{hotkey:{key:'ctrl+cmd',mode:'hold'},stt:{model:'tiny.en'},inject:{restore_clipboard:true},
+      audio:{sample_rate:16000,channels:1,preroll_ms:500,device:null},
       llm:{enabled:true,mode:'auto',api:{api_key:'',model:'llama-3.1-8b-instant'},model:'qwen3:4b-instruct'},
       ui:{flow_bar:true,sounds:true,mute_music:false}},
     status:{recording:false,cleanup:'ollama',model:'tiny.en',hotkey:'ctrl+cmd',mode:'hold'},
@@ -248,6 +261,8 @@ function toast(msg) {
 const esc = s => (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtN = n => n >= 10000 ? (n/1000).toFixed(1).replace(/\.0$/,'') + 'K' : (n||0).toLocaleString();
 const fmtTime = ts => new Date(ts*1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+const KEYSYM = {ctrl:'⌃',cmd:'⌘',alt:'⌥',shift:'⇧',ctrl_r:'⌃ right',cmd_r:'⌘ right',alt_r:'⌥ right',f13:'F13'};
+const prettyChord = k => (k||'').split('+').map(n => KEYSYM[n.trim()] || n.trim()).join(' + ');
 const fmtDate = ts => new Date(ts*1000).toLocaleDateString([], {month:'long', day:'numeric', year:'numeric'});
 
 /* ── nav + transitions ─────────────────── */
@@ -419,37 +434,42 @@ settings() {
   <div class="set">
     <div class="sec reveal" style="--i:1">General</div>
     <div class="card srow reveal" style="--i:1"><div class="sl"><div class="st">Shortcut</div>
-      <div class="sd">Chord of ctrl, cmd, alt, shift — joined with “+” — or a single key (alt_r, f13).</div></div>
-      <input id="setKey" value="${esc(c.hotkey.key)}" style="max-width:170px"></div>
+      <div class="sd">Click, then press the keys you want — modifiers (⌃ ⌘ ⌥ ⇧, left or right) or F13. Esc cancels.</div></div>
+      <button class="hkbtn" id="hkBtn"></button></div>
     <div class="card srow reveal" style="--i:2"><div class="sl"><div class="st">Mode</div>
       <div class="sd">Hold: record while held. Toggle: press to start, press to stop.</div></div>
       <select id="setMode"><option value="hold" ${c.hotkey.mode==='hold'?'selected':''}>Hold</option>
       <option value="toggle" ${c.hotkey.mode==='toggle'?'selected':''}>Toggle</option></select></div>
-    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Accuracy</div>
+    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Microphone</div>
+      <div class="sd">Which input VoiceBud listens to. The bar below shows the live signal.</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:190px">
+        <select id="setMic"><option value="">System default</option></select>
+        <div class="meter"><div id="micMeter"></div></div></div></div>
+    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Accuracy</div>
       <div class="sd">Bigger models are more accurate and slower. tiny.en is instant; small is a good step up.</div></div>
       <select id="setModel">${['tiny.en','base','small','medium','large-v3'].map(m =>
         `<option ${c.stt.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
 
-    <div class="sec reveal" style="--i:4">Cleanup</div>
-    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Cleanup engine</div>
+    <div class="sec reveal" style="--i:5">Cleanup</div>
+    <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Cleanup engine</div>
       <div class="sd">Auto: cloud API if a key is set, else local Ollama, else raw transcripts.</div></div>
       <select id="setLlmMode">${['auto','api','ollama'].map(m =>
         `<option ${ (llm.mode||'auto')===m?'selected':''}>${m}</option>`).join('')}</select></div>
-    <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Groq API key</div>
+    <div class="card srow reveal" style="--i:6"><div class="sl"><div class="st">Groq API key</div>
       <div class="sd">Free at console.groq.com. Cleanup only — your audio never goes anywhere.</div></div>
       <input id="setKeyApi" type="password" placeholder="gsk_…" value="${esc(llm.api?.api_key||'')}"></div>
 
-    <div class="sec reveal" style="--i:6">App</div>
-    <div class="card srow reveal" style="--i:6"><div class="sl"><div class="st">Show dictation bar at all times</div>
+    <div class="sec reveal" style="--i:7">App</div>
+    <div class="card srow reveal" style="--i:7"><div class="sl"><div class="st">Show dictation bar at all times</div>
       <div class="sd">The floating pill at the bottom of the screen with your shortcut.</div></div>${sw('swBar', ui.flow_bar)}</div>
-    <div class="card srow reveal" style="--i:7"><div class="sl"><div class="st">Dictation sounds</div>
+    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Dictation sounds</div>
       <div class="sd">A soft tick when recording starts and stops.</div></div>${sw('swSnd', ui.sounds)}</div>
-    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Mute music while dictating</div>
+    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Mute music while dictating</div>
       <div class="sd">Pauses Music or Spotify while you talk, resumes after.</div></div>${sw('swMus', ui.mute_music)}</div>
-    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Launch at login</div>
+    <div class="card srow reveal" style="--i:10"><div class="sl"><div class="st">Launch at login</div>
       <div class="sd">Start VoiceBud automatically when you log in.</div></div>${sw('swLog', S.launch_login)}</div>
 
-    <div class="reveal" style="--i:10;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
+    <div class="reveal" style="--i:11;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
       <button class="btn" id="saveSet">Save changes</button>
     </div>
   </div>`;
@@ -468,8 +488,7 @@ window.go = go;
 /* ── wiring ────────────────────────────── */
 const WIRE = {
 dictation() {
-  document.getElementById('hotkeyLabel').textContent =
-    S.status.hotkey.split('+').map(k => ({ctrl:'⌃',cmd:'⌘',alt:'⌥',shift:'⇧'}[k] || k)).join(' + ');
+  document.getElementById('hotkeyLabel').textContent = prettyChord(S.status.hotkey);
   pollStatus();
 },
 history() {
@@ -587,10 +606,76 @@ settings() {
     const el = document.getElementById(id);
     el.onclick = () => el.classList.toggle('on');
   });
+
+  /* hotkey capture: click, hold the chord, release to commit; Esc cancels */
+  const HK_ORDER = ['ctrl','ctrl_r','alt','alt_r','shift','cmd','cmd_r','f13'];
+  const hkBtn = document.getElementById('hkBtn');
+  let hkValue = S.config.hotkey.key, hkListen = false, hkHeld = new Set(), hkGot = new Set();
+  const hkShow = () => { hkBtn.textContent = hkListen ? 'Press your shortcut…' : prettyChord(hkValue); };
+  const hkStop = () => {
+    hkListen = false; hkBtn.classList.remove('listen');
+    window.removeEventListener('keydown', hkDown, true);
+    window.removeEventListener('keyup', hkUp, true);
+    window.removeEventListener('blur', hkStop);
+    if (hkBtn.isConnected) hkShow();
+  };
+  const hkReject = () => {
+    hkBtn.classList.add('bad'); setTimeout(() => hkBtn.classList.remove('bad'), 350);
+  };
+  const evName = e => {                       // KeyboardEvent -> pynput config name
+    const r = e.location === 2;               // location 2 = right-side modifier
+    return {Control: r ? 'ctrl_r' : 'ctrl', Meta: r ? 'cmd_r' : 'cmd',
+            Alt: r ? 'alt_r' : 'alt', Shift: 'shift', F13: 'f13'}[e.key] || null;
+  };
+  const hkDown = e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!hkBtn.isConnected || e.key === 'Escape') return hkStop();
+    const n = evName(e);
+    if (!n) return hkReject();                // only modifiers + f13 are valid
+    hkHeld.add(n); hkGot.add(n);
+  };
+  const hkUp = e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!hkBtn.isConnected) return hkStop();
+    const n = evName(e); if (n) hkHeld.delete(n);
+    if (hkHeld.size || !hkGot.size) return;   // commit only when everything is released
+    const chord = HK_ORDER.filter(k => hkGot.has(k)).join('+');
+    hkGot = new Set();
+    if (!chord) return hkReject();
+    hkValue = chord; hkStop();
+  };
+  hkBtn.onclick = () => {
+    if (hkListen) return hkStop();
+    hkListen = true; hkHeld = new Set(); hkGot = new Set();
+    hkBtn.classList.add('listen'); hkShow();
+    window.addEventListener('keydown', hkDown, true);
+    window.addEventListener('keyup', hkUp, true);
+    window.addEventListener('blur', hkStop);
+  };
+  hkShow();
+
+  /* microphone picker + live input meter */
+  const mic = document.getElementById('setMic');
+  const saved = S.config.audio?.device || '';
+  call('audio.devices').then(r => {
+    for (const d of (r.devices || [])) {
+      const o = document.createElement('option');
+      o.value = d.name; o.textContent = d.name + (d.default ? ' (default)' : '');
+      mic.appendChild(o);
+    }
+    mic.value = saved;
+    if (mic.value !== saved) mic.value = '';  // saved device unplugged -> default
+  });
+  clearInterval(meterTimer);
+  meterTimer = setInterval(async () => {
+    if (cur !== 'settings') { clearInterval(meterTimer); return; }
+    const st = await call('status'), m = document.getElementById('micMeter');
+    if (m) m.style.width = Math.min(100, Math.round((st.level || 0) * 600)) + '%';
+  }, 300);
+
   document.getElementById('saveSet').onclick = async () => {
     const partial = {
-      hotkey: {key: document.getElementById('setKey').value.trim(),
-               mode: document.getElementById('setMode').value},
+      hotkey: {key: hkValue, mode: document.getElementById('setMode').value},
       stt: {model: document.getElementById('setModel').value},
       llm: {mode: document.getElementById('setLlmMode').value,
             api: {api_key: document.getElementById('setKeyApi').value.trim()}},
@@ -599,17 +684,20 @@ settings() {
            mute_music: document.getElementById('swMus').classList.contains('on'),
            launch_login: document.getElementById('swLog').classList.contains('on')},
     };
+    const dev = mic.value || null;
+    if (dev !== (S.config.audio?.device ?? null)) partial.audio = {device: dev};
     const r = await call('settings.save', partial);
     S.launch_login = partial.ui.launch_login;
     Object.assign(S.config.hotkey, partial.hotkey);
     Object.assign(S.config.stt, partial.stt);
+    if (partial.audio) Object.assign(S.config.audio, partial.audio);
     toast(r.restarting ? 'Saved — <span class="amber">restarting the engine…</span>' : 'Saved');
   };
 },
 };
 
 /* live status pulse on the dictation page */
-let statusTimer = null;
+let statusTimer = null, meterTimer = null;
 function pollStatus() {
   clearInterval(statusTimer);
   statusTimer = setInterval(async () => {

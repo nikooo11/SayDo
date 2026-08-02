@@ -37,6 +37,7 @@ audio:
   sample_rate: 16000
   channels: 1
   preroll_ms: 500             # ring buffer so the first word isn't clipped
+  device: null                # input device name (see Settings); null = system default
 
 inject:
   method: paste               # paste (clipboard + synthesized Cmd+V) | type (per-char CGEvent)
