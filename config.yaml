@@ -21,9 +21,9 @@ llm:
 hotkey:
   # single key (alt_r, ctrl_r, f13) or a chord like "ctrl+alt".
   # note: macOS does not let apps see the fn key, so fn cannot be used.
-  key: ctrl+shift
+  key: ctrl+cmd
   # hold = record while keys are held | toggle = press once to start, again to stop
-  mode: toggle
+  mode: hold
 
 audio:
   sample_rate: 16000
