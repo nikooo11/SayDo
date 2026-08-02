@@ -16,6 +16,7 @@ from pathlib import Path
 
 import yaml
 
+import appmodes
 import dictionary
 import history
 import inject
@@ -135,7 +136,7 @@ def main():
 
     print(f"Loading STT model ({cfg['stt']['model']})...")
     stt = Transcriber(cfg["stt"])
-    state = {"cleaner": Cleaner(cfg["llm"])}
+    state = {"cleaner": Cleaner(cfg["llm"]), "front_app": None}
     rec = Recorder(
         sample_rate=cfg["audio"]["sample_rate"],
         channels=cfg["audio"]["channels"],
@@ -227,6 +228,7 @@ def main():
     status.setMenu_(menu)
 
     def on_press():
+        state["front_app"] = appmodes.frontmost_app_name()
         if cfg["ui"].get("mute_music"):
             threading.Thread(target=ducker.pause, daemon=True).start()
         play_sound("Pop")
@@ -235,16 +237,25 @@ def main():
 
     def process(audio):
         t0 = time.time()
+        app_name = state.get("front_app")
+        # read rules live from cfg so saved settings apply without a restart
+        mode = appmodes.resolve_mode(
+            app_name, (cfg.get("app_modes") or {}).get("rules") or [])
         raw = stt.transcribe(audio)
         if not raw:
             print("(no speech detected)")
             return
         text = dictionary.apply_corrections(raw)
-        text = state["cleaner"].clean(text)
-        text = snippets.apply(text)
+        if mode == "standard":
+            text = state["cleaner"].clean(text)
+        if mode != "raw":
+            text = snippets.apply(text)
+        if mode == "code":
+            text = appmodes.code_postprocess(text)
         inject.inject(text, cfg["inject"])
-        history.append(text, audio.size / cfg["audio"]["sample_rate"])
-        print(f'→ "{text}"  ({time.time() - t0:.2f}s)')
+        history.append(text, audio.size / cfg["audio"]["sample_rate"], app=app_name)
+        tag = f"  [{mode} · {app_name}]" if mode != "standard" else ""
+        print(f'→ "{text}"{tag}  ({time.time() - t0:.2f}s)')
 
     def on_release():
         audio = rec.stop()

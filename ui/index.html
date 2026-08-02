@@ -102,6 +102,9 @@ h1.pg em{color:var(--amber)}
   padding-top:3px;min-width:60px}
 .hrow .x{flex:1;color:#d2d0ca;user-select:text}
 .hrow .w{color:var(--faint);font-size:11px;padding-top:3px;white-space:nowrap}
+.hrow .appchip{color:var(--faint);font-size:10px;border:1px solid var(--line);border-radius:5px;
+  padding:1px 6px;margin-top:2.5px;flex:none;max-width:110px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
 .iconbtn{background:none;color:var(--faint);padding:3px 7px;border-radius:6px;font-size:12px}
 .iconbtn:hover{color:var(--amber);background:var(--amber-soft)}
 .dategrp{color:var(--faint);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
@@ -227,9 +230,10 @@ function mock(op) {
     config:{hotkey:{key:'ctrl+cmd',mode:'hold'},stt:{model:'tiny.en'},inject:{restore_clipboard:true},
       audio:{sample_rate:16000,channels:1,preroll_ms:500,device:null},
       llm:{enabled:true,mode:'auto',api:{api_key:'',model:'llama-3.1-8b-instant'},model:'qwen3:4b-instruct'},
+      app_modes:{rules:[{match:'Terminal',mode:'code'}]},
       ui:{flow_bar:true,sounds:true,mute_music:false}},
     status:{recording:false,cleanup:'ollama',model:'tiny.en',hotkey:'ctrl+cmd',mode:'hold'},
-    history:[{ts:Date.now()/1000-500,text:'Retrieve the audio from SupaBase instead of regenerating it every time.',words:11,duration_s:6}],
+    history:[{ts:Date.now()/1000-500,text:'Retrieve the audio from SupaBase instead of regenerating it every time.',words:11,duration_s:6,app:'Cursor'}],
     stats:{total_words:74023,sessions:512,wpm:157,streak:4,daily,
       voice:{profile:'Steady Drafter',profile_blurb:'You dictate in measured, sentence-sized passes.',
         top_word:{word:'supabase',count:41},catchphrase:'push to main',peak:'Tuesday at 1 p.m.',avg_words:19}},
@@ -459,17 +463,32 @@ settings() {
       <div class="sd">Free at console.groq.com. Cleanup only — your audio never goes anywhere.</div></div>
       <input id="setKeyApi" type="password" placeholder="gsk_…" value="${esc(llm.api?.api_key||'')}"></div>
 
-    <div class="sec reveal" style="--i:7">App</div>
-    <div class="card srow reveal" style="--i:7"><div class="sl"><div class="st">Show dictation bar at all times</div>
+    <div class="sec reveal" style="--i:7">Per-app modes</div>
+    <div class="card reveal" style="--i:7">
+      <div class="sl" style="margin-bottom:6px"><div class="st">Dictation style by app</div>
+        <div class="sd">First matching rule wins; everything else stays standard. Code skips cleanup and drops the
+        trailing period. Raw applies dictionary corrections only.</div></div>
+      <div id="amList"></div>
+      <div class="addbar" style="margin:12px 0 0">
+        <input id="amMatch" placeholder="App name contains… e.g. Terminal, Cursor">
+        <select id="amMode" style="min-width:110px">
+          <option value="standard">standard</option><option value="code">code</option>
+          <option value="raw">raw</option></select>
+        <button class="btn" id="amAdd">Add</button>
+      </div>
+    </div>
+
+    <div class="sec reveal" style="--i:8">App</div>
+    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Show dictation bar at all times</div>
       <div class="sd">The floating pill at the bottom of the screen with your shortcut.</div></div>${sw('swBar', ui.flow_bar)}</div>
-    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Dictation sounds</div>
+    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Dictation sounds</div>
       <div class="sd">A soft tick when recording starts and stops.</div></div>${sw('swSnd', ui.sounds)}</div>
-    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Mute music while dictating</div>
+    <div class="card srow reveal" style="--i:10"><div class="sl"><div class="st">Mute music while dictating</div>
       <div class="sd">Pauses Music or Spotify while you talk, resumes after.</div></div>${sw('swMus', ui.mute_music)}</div>
-    <div class="card srow reveal" style="--i:10"><div class="sl"><div class="st">Launch at login</div>
+    <div class="card srow reveal" style="--i:11"><div class="sl"><div class="st">Launch at login</div>
       <div class="sd">Start VoiceBud automatically when you log in.</div></div>${sw('swLog', S.launch_login)}</div>
 
-    <div class="reveal" style="--i:11;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
+    <div class="reveal" style="--i:12;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
       <button class="btn" id="saveSet">Save changes</button>
     </div>
   </div>`;
@@ -479,6 +498,7 @@ settings() {
 /* shared history row */
 function hRow(h) {
   return `<div class="hrow"><span class="t">${fmtTime(h.ts)}</span>
+    ${h.app ? `<span class="appchip" title="${esc(h.app)}">${esc(h.app)}</span>` : ''}
     <span class="x">${esc(h.text)}</span><span class="w">${h.words}w</span>
     <button class="iconbtn" onclick="copyText(this)" data-t="${esc(h.text)}">Copy</button></div>`;
 }
@@ -666,6 +686,29 @@ settings() {
     mic.value = saved;
     if (mic.value !== saved) mic.value = '';  // saved device unplugged -> default
   });
+  /* per-app mode rules: edited locally, saved wholesale with the page */
+  let amRules = (S.config.app_modes?.rules || []).map(r => ({match: r.match, mode: r.mode}));
+  const amOpts = m => ['standard','code','raw'].map(x =>
+    `<option value="${x}" ${x===m?'selected':''}>${x}</option>`).join('');
+  const amDraw = () => {
+    const l = document.getElementById('amList');
+    l.innerHTML = amRules.length ? amRules.map((r, i) =>
+      `<div class="lrow"><span class="main-t">name contains <b>${esc(r.match)}</b></span>
+        <select class="amSel" data-i="${i}" style="min-width:110px">${amOpts(r.mode)}</select>
+        <button class="iconbtn" data-i="${i}">Remove</button></div>`).join('')
+      : '<div class="empty" style="padding:14px 0">No rules yet — every app gets standard cleanup.</div>';
+    l.querySelectorAll('.amSel').forEach(s =>
+      s.onchange = () => { amRules[+s.dataset.i].mode = s.value; });
+    l.querySelectorAll('.iconbtn').forEach(b =>
+      b.onclick = () => { amRules.splice(+b.dataset.i, 1); amDraw(); });
+  };
+  document.getElementById('amAdd').onclick = () => {
+    const m = document.getElementById('amMatch').value.trim(); if (!m) return;
+    amRules.push({match: m, mode: document.getElementById('amMode').value});
+    document.getElementById('amMatch').value = ''; amDraw();
+  };
+  amDraw();
+
   clearInterval(meterTimer);
   meterTimer = setInterval(async () => {
     if (cur !== 'settings') { clearInterval(meterTimer); return; }
@@ -679,6 +722,7 @@ settings() {
       stt: {model: document.getElementById('setModel').value},
       llm: {mode: document.getElementById('setLlmMode').value,
             api: {api_key: document.getElementById('setKeyApi').value.trim()}},
+      app_modes: {rules: amRules},
       ui: {flow_bar: document.getElementById('swBar').classList.contains('on'),
            sounds: document.getElementById('swSnd').classList.contains('on'),
            mute_music: document.getElementById('swMus').classList.contains('on'),
@@ -690,6 +734,7 @@ settings() {
     S.launch_login = partial.ui.launch_login;
     Object.assign(S.config.hotkey, partial.hotkey);
     Object.assign(S.config.stt, partial.stt);
+    S.config.app_modes = {rules: amRules.map(r => ({...r}))};
     if (partial.audio) Object.assign(S.config.audio, partial.audio);
     toast(r.restarting ? 'Saved — <span class="amber">restarting the engine…</span>' : 'Saved');
   };

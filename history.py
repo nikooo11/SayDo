@@ -12,13 +12,14 @@ _DIR = Path.home() / "Library" / "Application Support" / "VoiceBud"
 _FILE = _DIR / "history.jsonl"
 
 
-def append(text, duration_s):
+def append(text, duration_s, app=None):
     _DIR.mkdir(parents=True, exist_ok=True)
     entry = {
         "ts": time.time(),
         "text": text,
         "words": len(text.split()),
         "duration_s": round(float(duration_s), 2),
+        "app": app,  # frontmost app at dictation time, or None
     }
     with open(_FILE, "a") as f:
         f.write(json.dumps(entry) + "\n")

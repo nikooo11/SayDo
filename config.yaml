@@ -39,6 +39,15 @@ audio:
   preroll_ms: 500             # ring buffer so the first word isn't clipped
   device: null                # input device name (see Settings); null = system default
 
+app_modes:
+  # per-app dictation modes. A rule matches when "match" is a case-insensitive
+  # substring of the frontmost app's name; first match wins, default standard.
+  #   standard — corrections + LLM cleanup + snippets
+  #   code     — corrections + snippets, no cleanup, trailing period dropped
+  #   raw      — corrections only
+  # example: rules: [{match: Terminal, mode: code}]
+  rules: []
+
 inject:
   method: paste               # paste (clipboard + synthesized Cmd+V) | type (per-char CGEvent)
   restore_clipboard: true
