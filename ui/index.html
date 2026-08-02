@@ -182,6 +182,24 @@ h1.pg em{color:var(--amber)}
 .meter{height:4px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
 .meter div{height:100%;width:0;border-radius:99px;background:var(--amber);transition:width .25s linear}
 
+/* welcome permission steps */
+.pstep{display:flex;align-items:center;gap:16px;padding:16px 20px}
+.pstep .pdot{width:9px;height:9px;border-radius:50%;background:var(--amber);
+  box-shadow:0 0 8px rgba(232,163,61,.55);flex:none;transition:all .25s}
+.pstep .pdot.ok{background:var(--green);box-shadow:0 0 8px rgba(105,200,126,.45)}
+.pstep .pl{flex:1}
+.pstep .pt{font-weight:600}
+.pstep .pd{color:var(--muted);font-size:12px;margin-top:2px;max-width:420px}
+.pstep .pstate{color:var(--faint);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+
+/* update banner */
+#upbar{position:fixed;top:54px;right:22px;z-index:150;display:none;align-items:center;gap:10px;
+  background:var(--panel-2);border:1px solid rgba(232,163,61,.45);border-radius:99px;
+  padding:7px 9px 7px 16px;font-size:12px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+#upbar .btn{padding:5px 12px;font-size:12px}
+#upbar .x{background:none;color:var(--faint);font-size:14px;padding:2px 7px;border-radius:6px}
+#upbar .x:hover{color:var(--text)}
+
 /* toast */
 #toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,20px);opacity:0;z-index:200;
   background:#1d1d24;border:1px solid var(--line);color:var(--text);padding:10px 20px;border-radius:99px;
@@ -200,11 +218,13 @@ h1.pg em{color:var(--amber)}
   <aside class="side">
     <div class="brand"><span class="name">SayDo</span><span class="tier">Studio</span></div>
     <nav class="nav" id="nav"></nav>
-    <div class="foot"><span><span class="dot-live"></span>On-device</span><span id="ver">v2.0</span></div>
+    <div class="foot"><span><span class="dot-live"></span>On-device</span><span id="ver">v2.1</span></div>
   </aside>
   <main class="main"><div id="page" class="page"></div></main>
 </div>
 <div id="toast"></div>
+<div id="upbar"><span id="upmsg"></span><button class="btn" id="upgo">Download</button>
+  <button class="x" id="updis" title="Dismiss">&times;</button></div>
 
 <script>
 /* ── bridge ─────────────────────────────── */
@@ -224,9 +244,12 @@ function mock(op) {
   if (op === 'audio.devices') return {devices:[
     {index:0, name:'MacBook Pro Microphone', default:true},
     {index:2, name:'External USB Mic', default:false}]};
+  if (op === 'permissions') return {input_monitoring:true, accessibility:false, mic:'undetermined'};
+  if (op === 'update.check') return {update:null};
   if (op !== 'init') return {};
   const daily = [...Array(14)].map((_, i) => ({day:'MTWTFSS'[i % 7], words: Math.floor(Math.random()*900)}));
-  return {version:'2.0', launch_login:false,
+  /* open with #welcome in a browser to preview the onboarding page */
+  return {version:'2.1', launch_login:false, onboarded: location.hash !== '#welcome',
     config:{hotkey:{key:'ctrl+cmd',mode:'hold'},stt:{model:'tiny.en'},inject:{restore_clipboard:true},
       audio:{sample_rate:16000,channels:1,preroll_ms:500,device:null},
       llm:{enabled:true,mode:'auto',api:{api_key:'',model:'llama-3.1-8b-instant'},model:'qwen3:4b-instruct'},
@@ -275,8 +298,13 @@ function buildNav() {
     `<button data-p="${p}" class="${p===cur?'on':''}">${ICONS[p]}${TITLES[p]}</button>`).join('');
   document.querySelectorAll('#nav button').forEach(b => b.onclick = () => go(b.dataset.p));
 }
+function markOnboarded() {
+  if (!S || S.onboarded) return;
+  S.onboarded = true; call('onboarded');
+}
 function go(p) {
   if (p === cur) return;
+  if (cur === 'welcome') markOnboarded();   // any way off the page completes onboarding
   cur = p; buildNav();
   const el = document.getElementById('page');
   el.classList.add('leaving');
@@ -290,6 +318,35 @@ function render() {
 
 /* ── views ─────────────────────────────── */
 const VIEWS = {
+welcome() {
+  const chord = prettyChord(S.status.hotkey);
+  const step = (i, id, title, desc, pane) => `
+    <div class="card pstep reveal" style="--i:${i}">
+      <span class="pdot" id="pd-${id}"></span>
+      <span class="pl"><span class="pt">${title}</span><div class="pd">${desc}</div></span>
+      <span class="pstate" id="ps-${id}">Checking…</span>
+      <button class="btn ghost" data-pane="${pane}">Open Settings</button>
+    </div>`;
+  return `
+  <div class="reveal" style="--i:0">
+    <h1 class="pg">Welcome to <em>SayDo</em>.</h1>
+    <p class="sub">Dictation that runs entirely on this Mac. Three permissions, then you can talk anywhere.</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px">
+    ${step(1, 'mic', 'Microphone', 'So SayDo can hear you. macOS also asks the first time you record.', 'mic')}
+    ${step(2, 'input', 'Input Monitoring', 'Lets the global shortcut work while any app is in front.', 'input')}
+    ${step(3, 'ax', 'Accessibility', 'Lets SayDo place finished text at your cursor.', 'accessibility')}
+  </div>
+  <div class="card reveal" style="--i:4;margin-bottom:18px">
+    <span class="k">Try it</span>
+    <div style="color:var(--muted);font-size:12px;margin:4px 0 10px">Grant the permissions above first. Then click into the box and speak.</div>
+    <textarea rows="3" style="width:100%;resize:none" placeholder="Click here, hold ${chord}, and say something."></textarea>
+  </div>
+  <div class="reveal" style="--i:5;display:flex;justify-content:flex-end">
+    <button class="btn" id="getStarted">Get started</button>
+  </div>`;
+},
+
 dictation() {
   const st = S.stats, v = st.voice;
   const recent = S.history.slice(0, 5);
@@ -507,6 +564,27 @@ window.go = go;
 
 /* ── wiring ────────────────────────────── */
 const WIRE = {
+welcome() {
+  const draw = p => {
+    const ok = {mic: p.mic === 'granted', input: !!p.input_monitoring, ax: !!p.accessibility};
+    for (const k in ok) {
+      const dot = document.getElementById('pd-' + k), lab = document.getElementById('ps-' + k);
+      if (!dot || !lab) continue;
+      dot.classList.toggle('ok', ok[k]);
+      lab.textContent = ok[k] ? 'Granted' : 'Action needed';
+      lab.style.color = ok[k] ? 'var(--green)' : 'var(--amber)';
+    }
+  };
+  call('permissions').then(draw);
+  clearInterval(permTimer);
+  permTimer = setInterval(async () => {
+    if (cur !== 'welcome') { clearInterval(permTimer); return; }
+    draw(await call('permissions'));
+  }, 2000);
+  document.querySelectorAll('[data-pane]').forEach(b =>
+    b.onclick = () => call('open.settings', {pane: b.dataset.pane}));
+  document.getElementById('getStarted').onclick = () => go('dictation');
+},
 dictation() {
   document.getElementById('hotkeyLabel').textContent = prettyChord(S.status.hotkey);
   pollStatus();
@@ -742,7 +820,7 @@ settings() {
 };
 
 /* live status pulse on the dictation page */
-let statusTimer = null, meterTimer = null;
+let statusTimer = null, meterTimer = null, permTimer = null;
 function pollStatus() {
   clearInterval(statusTimer);
   statusTimer = setInterval(async () => {
@@ -766,11 +844,30 @@ setInterval(async () => {
   }
 }, 5000);
 
+/* update banner: one check at boot; dismissed state is kept per version */
+async function checkUpdate() {
+  const u = (await call('update.check'))?.update;
+  if (!u || !u.version) return;
+  let dismissed = null;
+  try { dismissed = localStorage.getItem('update-dismissed'); } catch (e) {}
+  if (dismissed === u.version) return;
+  const bar = document.getElementById('upbar');
+  document.getElementById('upmsg').textContent = `SayDo ${u.version} is available`;
+  document.getElementById('upgo').onclick = () => call('open.url', {url: u.url});
+  document.getElementById('updis').onclick = () => {
+    try { localStorage.setItem('update-dismissed', u.version); } catch (e) {}
+    bar.style.display = 'none';
+  };
+  bar.style.display = 'flex';
+}
+
 /* boot */
 (async () => {
   S = await call('init');
   document.getElementById('ver').textContent = 'v' + S.version;
+  if (!S.onboarded) cur = 'welcome';
   buildNav(); render();
+  checkUpdate();
 })();
 </script>
 </body>

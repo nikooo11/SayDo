@@ -213,9 +213,12 @@ def main():
 
     Controller.cfg = cfg
     dashboard = Dashboard(Controller)
-    # debug/automation hook: open the dashboard at launch if the flag file exists
+    # debug/automation hook: open the dashboard at launch if the flag file exists.
+    # Also open on a fresh install (onboarding not completed) so the welcome
+    # page greets the user on first run.
+    from window import onboarded_flag
     _flag = Path.home() / "Library" / "Application Support" / "SayDo" / ".open-dashboard"
-    if _flag.exists():
+    if _flag.exists() or not onboarded_flag().exists():
         _flag.unlink(missing_ok=True)
         AppHelper.callAfter(dashboard.open)
     menu_target = MenuTarget.alloc().initWithDashboard_(dashboard)

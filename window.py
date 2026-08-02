@@ -5,6 +5,8 @@ and receives replies via window.__vbDeliver(id, payload). All handlers run on
 the main thread (WebKit delivers script messages there).
 """
 import json
+import threading
+from pathlib import Path
 
 import objc
 import yaml
@@ -18,6 +20,7 @@ from AppKit import (
     NSWindowStyleMaskTitled,
 )
 from Foundation import NSObject, NSURL
+from PyObjCTools import AppHelper
 from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
 
 import dictionary
@@ -27,7 +30,66 @@ import scratchpad
 import snippets
 from bundle import resource_dir
 
-APP_VERSION = "2.0"
+APP_VERSION = "2.1"
+
+RELEASES_API = "https://api.github.com/repos/nikooo11/SayDo/releases/latest"
+
+_SETTINGS_PANES = {
+    "input": "Privacy_ListenEvent",
+    "accessibility": "Privacy_Accessibility",
+    "mic": "Privacy_Microphone",
+}
+
+
+def onboarded_flag():
+    return Path.home() / "Library" / "Application Support" / "SayDo" / ".onboarded"
+
+
+def permissions_status():
+    """Live snapshot of the three permissions the welcome page tracks."""
+    try:
+        import Quartz
+        input_monitoring = bool(Quartz.CGPreflightListenEventAccess())
+    except Exception:
+        input_monitoring = True
+    try:
+        from ApplicationServices import AXIsProcessTrusted
+        accessibility = bool(AXIsProcessTrusted())
+    except Exception:
+        accessibility = True
+    try:
+        import AVFoundation
+        st = AVFoundation.AVCaptureDevice.authorizationStatusForMediaType_("soun")
+        # AVAuthorizationStatus: 0 not determined, 1 restricted, 2 denied, 3 authorized
+        mic = {0: "undetermined", 1: "denied", 2: "denied", 3: "granted"}.get(st, "unknown")
+    except Exception:
+        mic = "unknown"
+    return {"input_monitoring": input_monitoring, "accessibility": accessibility, "mic": mic}
+
+
+def _version_tuple(s):
+    return tuple(int(p) for p in str(s).strip().lstrip("v").split("."))
+
+
+def is_newer(latest, current):
+    """True if version string `latest` > `current`; malformed input = no update."""
+    try:
+        return _version_tuple(latest) > _version_tuple(current)
+    except (ValueError, AttributeError):
+        return False
+
+
+def check_update():
+    """Blocking GitHub release lookup; call from a worker thread only."""
+    try:
+        import requests
+        info = requests.get(RELEASES_API, timeout=4).json()
+        tag = (info.get("tag_name") or "").lstrip("v")
+        if is_newer(tag, APP_VERSION):
+            return {"update": {"version": tag, "url": info.get("html_url")}}
+    except Exception:
+        pass
+    return {"update": None}
 
 
 class _Bridge(NSObject):
@@ -43,13 +105,28 @@ class _Bridge(NSObject):
         body = msg.body()
         mid, op = body.get("id"), body.get("op")
         data = body.get("data") or {}
+        if op == "update.check":
+            # network call: run off the main thread, deliver the reply later
+            threading.Thread(target=self._update_worker, args=(mid,), daemon=True).start()
+            return
         try:
             result = self._dispatch(op, data)
         except Exception as e:  # surface errors to the UI instead of dying
             result = {"error": str(e)}
-        if mid is not None and self.webview is not None:
-            js = f"window.__vbDeliver({json.dumps(mid)}, {json.dumps(result)})"
-            self.webview.evaluateJavaScript_completionHandler_(js, None)
+        self._deliver(mid, result)
+
+    @objc.python_method
+    def _deliver(self, mid, result):
+        """Send a reply to the page. Main thread only (evaluateJavaScript)."""
+        if mid is None or self.webview is None:
+            return
+        js = f"window.__vbDeliver({json.dumps(mid)}, {json.dumps(result)})"
+        self.webview.evaluateJavaScript_completionHandler_(js, None)
+
+    @objc.python_method
+    def _update_worker(self, mid):
+        result = check_update()
+        AppHelper.callAfter(self._deliver, mid, result)
 
     @objc.python_method
     def _dispatch(self, op, d):
@@ -66,9 +143,32 @@ class _Bridge(NSObject):
                 "snippets": snippets.entries(),
                 "notes": scratchpad.entries(),
                 "launch_login": launch_login.enabled(),
+                "onboarded": onboarded_flag().exists(),
             }
         if op == "status":
             return c.status()
+        if op == "permissions":
+            return permissions_status()
+        if op == "onboarded":
+            flag = onboarded_flag()
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.touch()
+            return {"ok": True}
+        if op == "open.settings":
+            anchor = _SETTINGS_PANES.get(d.get("pane"))
+            if not anchor:
+                return {"error": f"unknown pane {d.get('pane')}"}
+            from AppKit import NSWorkspace
+            NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(
+                f"x-apple.systempreferences:com.apple.preference.security?{anchor}"))
+            return {"ok": True}
+        if op == "open.url":
+            url = d.get("url") or ""
+            if not url.startswith("https://github.com/"):
+                return {"error": "blocked url"}
+            from AppKit import NSWorkspace
+            NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(url))
+            return {"ok": True}
         if op == "audio.devices":
             return {"devices": _input_devices()}
         if op == "refresh":
