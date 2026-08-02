@@ -125,11 +125,18 @@ class Overlay:
                 "dash": (DASH_W, DASH_H)}[kind]
         return (((screen.size.width - w) / 2, 110), (w, h))
 
-    def _idle(self):
+    def _animate_to(self, kind):
+        # setFrame:display:animate: gives a short smooth grow/shrink
+        self.panel.setFrame_display_animate_(self._frame(kind), True, True)
+
+    def _idle(self, animate=False):
         self.view.recording = False
         self.view.dash = True
-        self.panel.setFrame_display_(self._frame("dash"), True)
         self.view.setNeedsDisplay_(True)
+        if animate:
+            self._animate_to("dash")
+        else:
+            self.panel.setFrame_display_(self._frame("dash"), True)
         self.panel.orderFrontRegardless()
         self._start_hover_watch()
 
@@ -155,8 +162,8 @@ class Overlay:
         if inside == (not self.view.dash):
             return
         self.view.dash = not inside
-        self.panel.setFrame_display_(self._frame("dash" if self.view.dash else "idle"), True)
         self.view.setNeedsDisplay_(True)
+        self._animate_to("dash" if self.view.dash else "idle")
 
     def set_flow_bar(self, on):
         self.flow_bar = on
@@ -175,8 +182,9 @@ class Overlay:
         self._stop_hover_watch()
         self.view.levels.extend([0.02] * BAR_COUNT)
         self.view.recording = True
-        self.panel.setFrame_display_(self._frame("rec"), True)
+        self.view.dash = False
         self.panel.orderFrontRegardless()
+        self._animate_to("rec")
         self._timer = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
             1 / 30.0, True, self._tick
         )
@@ -186,6 +194,6 @@ class Overlay:
             self._timer.invalidate()
             self._timer = None
         if self.flow_bar:
-            self._idle()
+            self._idle(animate=True)
         else:
             self.panel.orderOut_(None)
