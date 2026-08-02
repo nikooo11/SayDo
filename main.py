@@ -144,6 +144,8 @@ def main():
     app = NSApplication.sharedApplication()
     app.setActivationPolicy_(1)  # accessory: no Dock icon
 
+    from window import permissions_status
+    print(f"permissions: {permissions_status()}")
     print(f"Loading STT model ({cfg['stt']['model']})...")
     stt = Transcriber(cfg["stt"])
     state = {"cleaner": Cleaner(cfg["llm"]), "front_app": None}
@@ -154,6 +156,13 @@ def main():
         device=resolve_input_device(cfg["audio"].get("device")),
     )
     rec.start_stream()
+
+    def _mic_probe():
+        time.sleep(2.5)
+        for _ in range(4):
+            print(f"mic level probe: {rec.level:.6f}")
+            time.sleep(0.6)
+    threading.Thread(target=_mic_probe, daemon=True).start()
 
     key = cfg["hotkey"]["key"]
     mode = cfg["hotkey"].get("mode", "hold")
@@ -256,9 +265,10 @@ def main():
         # read rules live from cfg so saved settings apply without a restart
         mode = appmodes.resolve_mode(
             app_name, (cfg.get("app_modes") or {}).get("rules") or [])
+        rms = float((audio ** 2).mean()) ** 0.5 if audio.size else 0.0
         raw = stt.transcribe(audio)
         if not raw:
-            print("(no speech detected)")
+            print(f"(no speech detected — {audio.size} samples, rms {rms:.6f})")
             return
         text = dictionary.apply_corrections(raw)
         if mode == "standard":
