@@ -57,7 +57,8 @@ def rename_app():
 
 
 def main():
-    with open("config.yaml") as f:
+    from bundle import config_path
+    with open(config_path()) as f:
         cfg = yaml.safe_load(f)
 
     check_permissions()

@@ -11,9 +11,11 @@ class Transcriber:
             self._model = None
         else:
             from faster_whisper import WhisperModel
+            from bundle import bundled_model
             self._mlx = None
+            name = cfg.get("model", "base")
             self._model = WhisperModel(
-                cfg.get("model", "base"),
+                bundled_model(name) or name,
                 device="cpu",
                 compute_type=cfg.get("compute_type", "int8"),
             )
