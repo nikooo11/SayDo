@@ -25,6 +25,7 @@ from Foundation import NSString
 BAR_COUNT = 24
 REC_W, REC_H = 260, 74
 IDLE_W, IDLE_H = 200, 34
+DASH_W, DASH_H = 64, 12
 LABEL_H = 20  # bottom strip reserved for the label while recording
 
 AMBER = (0.93, 0.65, 0.25)
@@ -49,6 +50,7 @@ class WaveView(NSView):
             return None
         self.levels = collections.deque([0.02] * BAR_COUNT, maxlen=BAR_COUNT)
         self.recording = False
+        self.dash = True   # collapsed idle state; expands on hover
         self.hint = ""
         return self
 
@@ -59,7 +61,13 @@ class WaveView(NSView):
         NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(b, radius, radius).fill()
 
         if not self.recording:
-            # idle pill: amber dot + hotkey hint
+            if self.dash:
+                # collapsed: slim dash with a faint amber dot, nearly invisible
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(*AMBER, 0.9).setFill()
+                NSBezierPath.bezierPathWithOvalInRect_(
+                    ((b.size.width / 2 - 2.5, b.size.height / 2 - 2.5), (5, 5))).fill()
+                return
+            # expanded idle pill: amber dot + hotkey hint
             NSColor.colorWithCalibratedRed_green_blue_alpha_(*AMBER, 1.0).setFill()
             NSBezierPath.bezierPathWithOvalInRect_(((16, b.size.height / 2 - 3), (6, 6))).fill()
             NSString.stringWithString_(self.hint).drawInRect_withAttributes_(
@@ -93,7 +101,7 @@ class Overlay:
         self.flow_bar = flow_bar
         self.hint = hint
         self.panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
-            self._frame(False),
+            self._frame("rec"),
             NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel,
             NSBackingStoreBuffered,
             False,
@@ -107,33 +115,67 @@ class Overlay:
         self.view.hint = hint
         self.panel.setContentView_(self.view)
         self._timer = None
+        self._hover_timer = None
         if flow_bar:
             self._idle()
 
-    def _frame(self, recording):
+    def _frame(self, kind):
         screen = NSScreen.mainScreen().frame()
-        w, h = (REC_W, REC_H) if recording else (IDLE_W, IDLE_H)
+        w, h = {"rec": (REC_W, REC_H), "idle": (IDLE_W, IDLE_H),
+                "dash": (DASH_W, DASH_H)}[kind]
         return (((screen.size.width - w) / 2, 110), (w, h))
 
     def _idle(self):
         self.view.recording = False
-        self.panel.setFrame_display_(self._frame(False), True)
+        self.view.dash = True
+        self.panel.setFrame_display_(self._frame("dash"), True)
         self.view.setNeedsDisplay_(True)
         self.panel.orderFrontRegardless()
+        self._start_hover_watch()
+
+    def _start_hover_watch(self):
+        if self._hover_timer is None:
+            self._hover_timer = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
+                0.12, True, self._hover_tick)
+
+    def _stop_hover_watch(self):
+        if self._hover_timer is not None:
+            self._hover_timer.invalidate()
+            self._hover_timer = None
+
+    def _hover_tick(self, _timer):
+        # the panel ignores mouse events so it never blocks clicks; hover is
+        # detected by polling the global cursor position against its frame
+        from AppKit import NSEvent
+        loc = NSEvent.mouseLocation()
+        f = self.panel.frame()
+        pad = 10
+        inside = (f.origin.x - pad <= loc.x <= f.origin.x + f.size.width + pad
+                  and f.origin.y - pad <= loc.y <= f.origin.y + f.size.height + pad)
+        if inside == (not self.view.dash):
+            return
+        self.view.dash = not inside
+        self.panel.setFrame_display_(self._frame("dash" if self.view.dash else "idle"), True)
+        self.view.setNeedsDisplay_(True)
 
     def set_flow_bar(self, on):
         self.flow_bar = on
         if not self.view.recording:
-            self._idle() if on else self.panel.orderOut_(None)
+            if on:
+                self._idle()
+            else:
+                self._stop_hover_watch()
+                self.panel.orderOut_(None)
 
     def _tick(self, _timer):
         self.view.levels.append(self.level_fn())
         self.view.setNeedsDisplay_(True)
 
     def show(self):
+        self._stop_hover_watch()
         self.view.levels.extend([0.02] * BAR_COUNT)
         self.view.recording = True
-        self.panel.setFrame_display_(self._frame(True), True)
+        self.panel.setFrame_display_(self._frame("rec"), True)
         self.panel.orderFrontRegardless()
         self._timer = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
             1 / 30.0, True, self._tick

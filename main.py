@@ -182,8 +182,8 @@ def main():
 
         @staticmethod
         def save_settings(partial):
-            needs_restart = any(
-                k in RESTART_KEYS and partial[k] != cfg.get(k) for k in partial)
+            import copy
+            before = {k: copy.deepcopy(cfg.get(k)) for k in RESTART_KEYS}
             for k, v in partial.items():
                 if isinstance(v, dict) and isinstance(cfg.get(k), dict):
                     for k2, v2 in v.items():
@@ -193,6 +193,8 @@ def main():
                             cfg[k][k2] = v2
                 else:
                     cfg[k] = v
+            # restart only when a restart-key actually changed after the merge
+            needs_restart = any(cfg.get(k) != before[k] for k in RESTART_KEYS)
             write_config(cfg, cfg_path)
             # live-apply what we can
             if "llm" in partial:
