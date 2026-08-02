@@ -52,7 +52,13 @@ class WaveView(NSView):
         self.recording = False
         self.dash = True   # collapsed idle state; expands on hover
         self.hint = ""
+        self.on_click = None
         return self
+
+    def mouseDown_(self, _event):
+        # expanded idle pill acts as a button: open the dashboard
+        if not self.recording and not self.dash and self.on_click is not None:
+            self.on_click()
 
     def drawRect_(self, rect):
         b = self.bounds()
@@ -162,6 +168,8 @@ class Overlay:
         if inside == (not self.view.dash):
             return
         self.view.dash = not inside
+        # clickable only while expanded, so the dash never swallows clicks
+        self.panel.setIgnoresMouseEvents_(self.view.dash)
         self.view.setNeedsDisplay_(True)
         self._animate_to("dash" if self.view.dash else "idle")
 
@@ -178,7 +186,11 @@ class Overlay:
         self.view.levels.append(self.level_fn())
         self.view.setNeedsDisplay_(True)
 
+    def set_on_click(self, fn):
+        self.view.on_click = fn
+
     def show(self):
+        self.panel.setIgnoresMouseEvents_(True)
         self._stop_hover_watch()
         self.view.levels.extend([0.02] * BAR_COUNT)
         self.view.recording = True

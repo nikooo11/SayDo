@@ -26,11 +26,12 @@ from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
 import dictionary
 import history
 import launch_login
+import ollama_setup
 import scratchpad
 import snippets
 from bundle import resource_dir
 
-APP_VERSION = "2.1"
+APP_VERSION = "2.2"
 
 RELEASES_API = "https://api.github.com/repos/nikooo11/SayDo/releases/latest"
 
@@ -200,6 +201,24 @@ class _Bridge(NSObject):
         if op == "note.delete":
             scratchpad.delete(d["id"])
             return {"notes": scratchpad.entries()}
+        if op == "cleanup.state":
+            llm = self.controller.cfg.get("llm") or {}
+            base = (llm.get("base_url") or "http://localhost:11434").rstrip("/")
+            return {
+                **ollama_setup.state(base, llm.get("model", "qwen3:4b-instruct")),
+                "api_key_set": bool((llm.get("api") or {}).get("api_key")),
+                "backend": self.controller.status().get("cleanup", "off"),
+                "setup": ollama_setup.progress(),
+            }
+        if op == "ollama.setup":
+            llm = self.controller.cfg.get("llm") or {}
+            base = (llm.get("base_url") or "http://localhost:11434").rstrip("/")
+            started = ollama_setup.start(
+                base, llm.get("model", "qwen3:4b-instruct"),
+                on_done=self.controller.reload_cleaner)
+            return {"started": started}
+        if op == "ollama.progress":
+            return ollama_setup.progress()
         if op == "settings.save":
             return c.save_settings(d)
         if op == "restart":

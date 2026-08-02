@@ -246,6 +246,14 @@ function mock(op) {
     {index:2, name:'External USB Mic', default:false}]};
   if (op === 'permissions') return {input_monitoring:true, accessibility:false, mic:'undetermined'};
   if (op === 'update.check') return {update:null};
+  if (op === 'cleanup.state') return {installed:false, running:false, model:false,
+    api_key_set:false, backend:'off', setup:{phase:'idle', detail:'', pct:0}};
+  if (op === 'ollama.setup') return {started:true};
+  if (op === 'ollama.progress') {
+    window.__mockPct = Math.min(100, (window.__mockPct || 0) + 9);
+    return window.__mockPct >= 100 ? {phase:'done', detail:'Local cleanup ready', pct:100}
+      : {phase:'pulling', detail:'Downloading qwen3:4b-instruct…', pct:window.__mockPct};
+  }
   if (op !== 'init') return {};
   const daily = [...Array(14)].map((_, i) => ({day:'MTWTFSS'[i % 7], words: Math.floor(Math.random()*900)}));
   /* open with #welcome in a browser to preview the onboarding page */
@@ -365,6 +373,7 @@ dictation() {
         <div class="status">
           <span class="pill" id="recpill"><span class="rec"></span><span id="recword">Standing by</span></span>
           <span class="pill"><span class="kbd" id="hotkeyLabel"></span>&nbsp;${S.status.mode === 'hold' ? 'hold to talk' : 'press to toggle'}</span>
+          ${S.status.cleanup === 'off' ? `<span class="pill" style="cursor:pointer;border-color:rgba(232,163,61,.45)" onclick="go('settings')">Cleanup off — set up →</span>` : ''}
         </div>
       </div>
       <div class="card reveal" style="--i:2;margin-top:18px">
@@ -519,6 +528,20 @@ settings() {
     <div class="card srow reveal" style="--i:6"><div class="sl"><div class="st">Groq API key</div>
       <div class="sd">Free at console.groq.com. Cleanup only — your audio never goes anywhere.</div></div>
       <input id="setKeyApi" type="password" placeholder="gsk_…" value="${esc(llm.api?.api_key||'')}"></div>
+    <div class="card reveal" style="--i:6" id="localEngineCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:20px">
+        <div class="sl"><div class="st">Local engine</div>
+          <div class="sd" id="leDetail">Checking…</div></div>
+        <button class="btn" id="leBtn" style="display:none">Set up local cleanup</button>
+      </div>
+      <div id="leProg" style="display:none;margin-top:14px">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:6px">
+          <span id="lePhase"></span><span id="lePct"></span></div>
+        <div style="height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden">
+          <div id="leBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--amber),#c9871f);border-radius:99px;transition:width .5s"></div>
+        </div>
+      </div>
+    </div>
 
     <div class="sec reveal" style="--i:7">Per-app modes</div>
     <div class="card reveal" style="--i:7">
@@ -704,6 +727,47 @@ settings() {
     const el = document.getElementById(id);
     el.onclick = () => el.classList.toggle('on');
   });
+
+  /* local cleanup engine: state card + guided install with progress */
+  const leDetail = document.getElementById('leDetail'), leBtn = document.getElementById('leBtn'),
+        leProg = document.getElementById('leProg');
+  let leTimer = null;
+  const leStop = () => { clearInterval(leTimer); leTimer = null; };
+  const leState = async () => {
+    if (!document.getElementById('leDetail')) { leStop(); return; }
+    const st = await call('cleanup.state');
+    if (st.setup && ['downloading','installing','starting','pulling'].includes(st.setup.phase)) {
+      leWatch(); return;
+    }
+    leProg.style.display = 'none';
+    if (st.model && st.running) {
+      leDetail.textContent = st.backend === 'ollama'
+        ? 'Local cleanup active — runs fully offline.'
+        : 'Installed and ready as the offline fallback.';
+      leBtn.style.display = 'none';
+    } else {
+      leDetail.textContent = st.installed
+        ? 'Ollama is installed but the cleanup model is missing (≈2.5 GB download).'
+        : 'One-time setup: installs Ollama and the cleanup model (≈3 GB total). Fully offline afterwards.';
+      leBtn.textContent = st.installed ? 'Download model' : 'Set up local cleanup';
+      leBtn.style.display = '';
+    }
+  };
+  const leWatch = () => {
+    leBtn.style.display = 'none'; leProg.style.display = '';
+    if (leTimer) return;
+    leTimer = setInterval(async () => {
+      if (!document.getElementById('leProg')) { leStop(); return; }
+      const p = await call('ollama.progress');
+      document.getElementById('lePhase').textContent = p.detail || p.phase;
+      document.getElementById('lePct').textContent = p.pct ? p.pct + '%' : '';
+      document.getElementById('leBar').style.width = (p.pct || 2) + '%';
+      if (p.phase === 'done') { leStop(); toast('Local cleanup is ready'); leState(); }
+      if (p.phase === 'error') { leStop(); toast('Setup failed: ' + esc(p.detail)); leState(); }
+    }, 800);
+  };
+  leBtn.onclick = async () => { await call('ollama.setup'); leWatch(); };
+  leState();
 
   /* hotkey capture: click, hold the chord, release to commit; Esc cancels */
   const HK_ORDER = ['ctrl','ctrl_r','alt','alt_r','shift','cmd','cmd_r','f13'];

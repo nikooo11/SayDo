@@ -219,11 +219,16 @@ def main():
             return {"ok": True, "restarting": False}
 
         @staticmethod
+        def reload_cleaner():
+            state["cleaner"] = Cleaner(cfg["llm"])
+
+        @staticmethod
         def restart():
             threading.Timer(0.3, lambda: AppHelper.callAfter(restart_app)).start()
 
     Controller.cfg = cfg
     dashboard = Dashboard(Controller)
+    overlay.set_on_click(dashboard.open)
     # debug/automation hook: open the dashboard at launch if the flag file exists.
     # Also open on a fresh install (onboarding not completed) so the welcome
     # page greets the user on first run.
