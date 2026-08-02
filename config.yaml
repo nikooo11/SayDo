@@ -6,7 +6,15 @@ stt:
 
 llm:
   enabled: true
-  # to change the LLM: edit llm.model below, then restart
+  # auto = cloud API if api_key is set, else local Ollama if installed, else raw
+  # api = cloud only | ollama = local only
+  mode: auto
+  api:
+    # free key: sign up at console.groq.com (no credit card), paste it here, restart
+    api_key: ""
+    base_url: https://api.groq.com/openai/v1
+    model: llama-3.1-8b-instant
+  # local fallback: edit llm.model below, then restart
   model: qwen3:4b-instruct
   base_url: http://localhost:11434
   temperature: 0.1
