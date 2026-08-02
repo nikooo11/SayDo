@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>VoiceBud</title>
+<title>SayDo</title>
 <style>
 @font-face{font-family:'Instrument Serif';src:url('assets/fonts/InstrumentSerif-Regular.ttf');font-weight:400}
 @font-face{font-family:'Instrument Serif';src:url('assets/fonts/InstrumentSerif-Italic.ttf');font-style:italic}
@@ -198,7 +198,7 @@ h1.pg em{color:var(--amber)}
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="name">VoiceBud</span><span class="tier">Studio</span></div>
+    <div class="brand"><span class="name">SayDo</span><span class="tier">Studio</span></div>
     <nav class="nav" id="nav"></nav>
     <div class="foot"><span><span class="dot-live"></span>On-device</span><span id="ver">v2.0</span></div>
   </aside>
@@ -382,7 +382,7 @@ insights() {
 dictionary() {
   return `
   <div class="reveal" style="--i:0"><h1 class="pg">Dictionary</h1>
-  <p class="sub">VoiceBud spells the way you do. Custom terms steer recognition; misspelling pairs are fixed automatically after transcription.</p></div>
+  <p class="sub">SayDo spells the way you do. Custom terms steer recognition; misspelling pairs are fixed automatically after transcription.</p></div>
   <div class="card reveal" style="--i:1;margin-bottom:16px">
     <div class="toggleRow"><div class="sw" id="mispSw"></div><span>Correct a misspelling — map what the engine hears to what you mean</span></div>
     <div class="addbar" id="dictAdd">
@@ -434,7 +434,7 @@ settings() {
   const sw = (id, on) => `<div class="sw ${on?'on':''}" id="${id}"></div>`;
   return `
   <div class="reveal" style="--i:0"><h1 class="pg">Settings</h1>
-  <p class="sub">Engine changes restart VoiceBud automatically. Everything else applies instantly.</p></div>
+  <p class="sub">Engine changes restart SayDo automatically. Everything else applies instantly.</p></div>
   <div class="set">
     <div class="sec reveal" style="--i:1">General</div>
     <div class="card srow reveal" style="--i:1"><div class="sl"><div class="st">Shortcut</div>
@@ -445,7 +445,7 @@ settings() {
       <select id="setMode"><option value="hold" ${c.hotkey.mode==='hold'?'selected':''}>Hold</option>
       <option value="toggle" ${c.hotkey.mode==='toggle'?'selected':''}>Toggle</option></select></div>
     <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Microphone</div>
-      <div class="sd">Which input VoiceBud listens to. The bar below shows the live signal.</div></div>
+      <div class="sd">Which input SayDo listens to. The bar below shows the live signal.</div></div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:190px">
         <select id="setMic"><option value="">System default</option></select>
         <div class="meter"><div id="micMeter"></div></div></div></div>
@@ -486,7 +486,7 @@ settings() {
     <div class="card srow reveal" style="--i:10"><div class="sl"><div class="st">Mute music while dictating</div>
       <div class="sd">Pauses Music or Spotify while you talk, resumes after.</div></div>${sw('swMus', ui.mute_music)}</div>
     <div class="card srow reveal" style="--i:11"><div class="sl"><div class="st">Launch at login</div>
-      <div class="sd">Start VoiceBud automatically when you log in.</div></div>${sw('swLog', S.launch_login)}</div>
+      <div class="sd">Start SayDo automatically when you log in.</div></div>${sw('swLog', S.launch_login)}</div>
 
     <div class="reveal" style="--i:12;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
       <button class="btn" id="saveSet">Save changes</button>

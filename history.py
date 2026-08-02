@@ -1,6 +1,6 @@
 """Local transcript history + usage stats. One JSONL file, newest last.
 
-Lives in ~/Library/Application Support/VoiceBud/history.jsonl for both the
+Lives in ~/Library/Application Support/SayDo/history.jsonl for both the
 dev checkout and the frozen app, so upgrading never loses history.
 """
 import json
@@ -8,7 +8,7 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-_DIR = Path.home() / "Library" / "Application Support" / "VoiceBud"
+_DIR = Path.home() / "Library" / "Application Support" / "SayDo"
 _FILE = _DIR / "history.jsonl"
 
 

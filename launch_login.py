@@ -4,14 +4,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-_LABEL = "com.nikooo11.voicebud"
+_LABEL = "com.nikooo11.saydo"
 _PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_LABEL}.plist"
 
 
 def _launch_command():
     if getattr(sys, "frozen", False):
         return [sys.executable]
-    app = Path("/Applications/VoiceBud.app")
+    app = Path("/Applications/SayDo.app")
     if app.exists():
         return ["/usr/bin/open", "-a", str(app)]
     return [sys.executable, str(Path(__file__).parent / "main.py")]

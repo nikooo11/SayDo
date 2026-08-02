@@ -9,7 +9,7 @@ import re
 import time
 from pathlib import Path
 
-_DIR = Path.home() / "Library" / "Application Support" / "VoiceBud"
+_DIR = Path.home() / "Library" / "Application Support" / "SayDo"
 _FILE = _DIR / "snippets.json"
 
 

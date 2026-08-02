@@ -1,6 +1,6 @@
-# Run VoiceBud on your MacBook
+# Run SayDo on your MacBook
 
-VoiceBud is a fully offline dictation app for **macOS on Apple Silicon** (M1–M4).
+SayDo is a fully offline dictation app for **macOS on Apple Silicon** (M1–M4).
 Press `ctrl+shift` anywhere → speak → press again → clean text appears at your cursor.
 No cloud, no subscription. Everything runs on your machine.
 
@@ -27,8 +27,8 @@ ollama pull qwen3:4b-instruct
 
 ```bash
 # Clone the repository from GitHub and enter it
-git clone https://github.com/anesriad/VoiceBud-Local-Riad.git
-cd VoiceBud-Local-Riad
+git clone https://github.com/nikooo11/SayDo.git
+cd SayDo-Local-Riad
 
 # Create an isolated Python environment inside the project
 python3.12 -m venv .venv
@@ -76,7 +76,7 @@ Click into any text field (Notes, browser, Slack, anywhere):
 
 ```bash
 # Edit com.riadanas.whisperflow.plist first: replace the two absolute paths with YOUR project path.
-# Then install and load it — VoiceBud now starts at every login, no terminal needed.
+# Then install and load it — SayDo now starts at every login, no terminal needed.
 cp com.riadanas.whisperflow.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.riadanas.whisperflow.plist
 

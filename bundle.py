@@ -13,13 +13,13 @@ def resource_dir():
 def config_path():
     """User-editable config location.
 
-    Frozen app: ~/Library/Application Support/VoiceBud/config.yaml, seeded from
+    Frozen app: ~/Library/Application Support/SayDo/config.yaml, seeded from
     the bundled default on first run so users can edit it without touching the .app.
     Dev checkout: config.yaml next to the code, unchanged behavior.
     """
     if not FROZEN:
         return Path(__file__).parent / "config.yaml"
-    support = Path.home() / "Library" / "Application Support" / "VoiceBud"
+    support = Path.home() / "Library" / "Application Support" / "SayDo"
     support.mkdir(parents=True, exist_ok=True)
     cfg = support / "config.yaml"
     if not cfg.exists():

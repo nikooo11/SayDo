@@ -147,7 +147,7 @@ class Dashboard:
                  | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             ((160, 120), (1080, 700)), style, NSBackingStoreBuffered, False)
-        self.window.setTitle_("VoiceBud")
+        self.window.setTitle_("SayDo")
         self.window.setTitlebarAppearsTransparent_(True)
         self.window.setMinSize_((860, 560))
         self.window.setReleasedWhenClosed_(False)
@@ -164,7 +164,7 @@ class Dashboard:
 
 
 class MenuTarget(NSObject):
-    """Target object for the status-bar menu's 'Open VoiceBud' item."""
+    """Target object for the status-bar menu's 'Open SayDo' item."""
 
     def initWithDashboard_(self, dashboard):
         self = objc.super(MenuTarget, self).init()

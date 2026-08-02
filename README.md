@@ -1,4 +1,4 @@
-# VoiceBud
+# SayDo
 
 Fully offline voice dictation for macOS (Apple Silicon) — a free, local alternative to Wispr Flow.
 

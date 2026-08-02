@@ -80,7 +80,7 @@ class WaveView(NSView):
             NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
                 ((x, y), (bw, bh)), bw / 2, bw / 2
             ).fill()
-        NSString.stringWithString_("VoiceBud").drawInRect_withAttributes_(
+        NSString.stringWithString_("SayDo").drawInRect_withAttributes_(
             ((0, 4), (b.size.width, 14)), _centered(11)
         )
 

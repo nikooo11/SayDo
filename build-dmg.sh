@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Build a self-contained VoiceBud.app and wrap it in a DMG (Apple Silicon).
+# Build a self-contained SayDo.app and wrap it in a DMG (Apple Silicon).
 # Requires: .venv with requirements.txt + pyinstaller installed, and the
 # tiny.en model already downloaded once (run the app once, or prime.py).
 set -e
@@ -13,27 +13,27 @@ rm -rf build/model-staging
 mkdir -p build/model-staging
 cp -RL "$MODEL_CACHE"/*/ build/model-staging/
 
-.venv/bin/pyinstaller --noconfirm --windowed --name VoiceBud \
-  --osx-bundle-identifier com.nikooo11.voicebud \
+.venv/bin/pyinstaller --noconfirm --windowed --name SayDo \
+  --osx-bundle-identifier com.nikooo11.saydo \
   --add-data "config.yaml:." \
   --add-data "build/model-staging:models/faster-whisper-tiny.en" \
   --add-data "ui:ui" \
   --collect-all faster_whisper \
   main.py
 
-PLIST=dist/VoiceBud.app/Contents/Info.plist
+PLIST=dist/SayDo.app/Contents/Info.plist
 plutil -replace LSUIElement -bool true "$PLIST"
 plutil -replace NSMicrophoneUsageDescription \
-  -string "VoiceBud records your voice to transcribe it into text." "$PLIST"
+  -string "SayDo records your voice to transcribe it into text." "$PLIST"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$PLIST"
 
-codesign --force --deep -s - dist/VoiceBud.app
+codesign --force --deep -s - dist/SayDo.app
 
 rm -rf build/dmg-staging
 mkdir -p build/dmg-staging
-cp -R dist/VoiceBud.app build/dmg-staging/
+cp -R dist/SayDo.app build/dmg-staging/
 ln -s /Applications build/dmg-staging/Applications
-hdiutil create -volname VoiceBud -srcfolder build/dmg-staging -ov -format UDZO \
-  "dist/VoiceBud-$VERSION-arm64.dmg"
+hdiutil create -volname SayDo -srcfolder build/dmg-staging -ov -format UDZO \
+  "dist/SayDo-$VERSION-arm64.dmg"
 
-echo "Built dist/VoiceBud-$VERSION-arm64.dmg"
+echo "Built dist/SayDo-$VERSION-arm64.dmg"

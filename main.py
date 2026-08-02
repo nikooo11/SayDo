@@ -1,4 +1,4 @@
-"""VoiceBud: hold the hotkey to dictate anywhere. Fully offline.
+"""SayDo: hold the hotkey to dictate anywhere. Fully offline.
 
 Setup (5 lines):
   python3.12 -m venv .venv && source .venv/bin/activate
@@ -27,7 +27,7 @@ from cleanup import Cleaner
 from hotkey import PushToTalk
 from transcribe import Transcriber
 
-APP_NAME = "VoiceBud"
+APP_NAME = "SayDo"
 
 UI_DEFAULTS = {"flow_bar": True, "sounds": True, "mute_music": False}
 
@@ -59,7 +59,7 @@ def check_permissions():
 
 
 def rename_app():
-    """Best-effort: show 'VoiceBud' instead of 'Python' where macOS reads the bundle name."""
+    """Best-effort: show 'SayDo' instead of 'Python' where macOS reads the bundle name."""
     try:
         from Foundation import NSBundle, NSProcessInfo
         NSProcessInfo.processInfo().setProcessName_(APP_NAME)
@@ -116,7 +116,17 @@ class MusicDucker:
         self._paused = []
 
 
+def migrate_data_dir():
+    """One-time: carry VoiceBud-era history/dictionary/notes over to SayDo."""
+    old = Path.home() / "Library" / "Application Support" / "VoiceBud"
+    new = Path.home() / "Library" / "Application Support" / "SayDo"
+    if old.exists() and not new.exists():
+        import shutil
+        shutil.move(str(old), str(new))
+
+
 def main():
+    migrate_data_dir()
     from bundle import config_path
     cfg_path = config_path()
     with open(cfg_path) as f:
@@ -204,18 +214,18 @@ def main():
     Controller.cfg = cfg
     dashboard = Dashboard(Controller)
     # debug/automation hook: open the dashboard at launch if the flag file exists
-    _flag = Path.home() / "Library" / "Application Support" / "VoiceBud" / ".open-dashboard"
+    _flag = Path.home() / "Library" / "Application Support" / "SayDo" / ".open-dashboard"
     if _flag.exists():
         _flag.unlink(missing_ok=True)
         AppHelper.callAfter(dashboard.open)
     menu_target = MenuTarget.alloc().initWithDashboard_(dashboard)
 
-    # menu bar icon so VoiceBud is visible/controllable like a normal app
+    # menu bar icon so SayDo is visible/controllable like a normal app
     status = NSStatusBar.systemStatusBar().statusItemWithLength_(-1)
     status.button().setTitle_("🎙️")
     menu = NSMenu.alloc().init()
     open_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-        "Open VoiceBud", "openDashboard:", "o")
+        "Open SayDo", "openDashboard:", "o")
     open_item.setTarget_(menu_target)
     menu.addItem_(open_item)
     hint_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
