@@ -34,6 +34,10 @@ UI_DEFAULTS = {"flow_bar": True, "sounds": True, "mute_music": False}
 # settings that need a full engine restart to apply
 RESTART_KEYS = {"hotkey", "stt", "audio"}
 
+# keep the mic open this long after a dictation so back-to-back dictations are
+# instant, then release it so macOS drops the orange mic-in-use indicator
+MIC_LINGER_S = 10
+
 
 def check_permissions():
     """Best-effort permission probes; print one-time setup guidance if missing."""
@@ -153,9 +157,7 @@ def main():
         sample_rate=cfg["audio"]["sample_rate"],
         channels=cfg["audio"]["channels"],
         preroll_ms=cfg["audio"]["preroll_ms"],
-        device=resolve_input_device(cfg["audio"].get("device")),
     )
-    rec.start_stream()
 
     def _current_input_name():
         import sounddevice as sd
@@ -164,14 +166,16 @@ def main():
         except Exception:
             return "unknown"
 
-    print(f"capturing from: {_current_input_name()}")
+    print(f"default mic: {_current_input_name()} (opens on dictation)")
 
-    def _mic_probe():
-        time.sleep(2.5)
-        for _ in range(4):
-            print(f"mic level probe: {rec.level:.6f}")
-            time.sleep(0.6)
-    threading.Thread(target=_mic_probe, daemon=True).start()
+    def _open_mic():
+        rec.open(lambda: resolve_input_device(cfg["audio"].get("device")))
+        print(f"mic opened — capturing from: {_current_input_name()}")
+
+    def _release_mic():
+        if rec.is_open and not rec._recording:
+            rec.release()
+            print("mic released")
 
     def _watch_input_devices():
         """Follow the system default mic: AirPods connect -> capture from them;
@@ -188,6 +192,9 @@ def main():
             except Exception:
                 continue
             if cur == applied or rec._recording:
+                continue
+            if not rec.is_open:
+                applied = cur  # closed mic binds fresh on the next open
                 continue
             try:
                 if rec.rebuild(lambda: resolve_input_device(cfg["audio"].get("device"))):
@@ -291,9 +298,18 @@ def main():
 
     def on_press():
         state["front_app"] = appmodes.frontmost_app_name()
+        timer = state.pop("mic_timer", None)
+        if timer is not None:
+            timer.cancel()
         if cfg["ui"].get("mute_music"):
             threading.Thread(target=ducker.pause, daemon=True).start()
         play_sound("Pop")
+        try:
+            if not rec.is_open:
+                _open_mic()
+        except Exception as e:
+            print(f"mic open failed: {e}")
+            return
         rec.start()
         AppHelper.callAfter(overlay.show)
 
@@ -327,6 +343,10 @@ def main():
             threading.Thread(target=ducker.resume, daemon=True).start()
         AppHelper.callAfter(overlay.hide)
         threading.Thread(target=process, args=(audio,), daemon=True).start()
+        timer = threading.Timer(MIC_LINGER_S, _release_mic)
+        timer.daemon = True
+        timer.start()
+        state["mic_timer"] = timer
 
     PushToTalk(key, on_press, on_release, mode=mode).start()
     action = "Press" if mode == "toggle" else "Hold"

@@ -7,8 +7,10 @@ import sounddevice as sd
 
 
 class Recorder:
-    def __init__(self, sample_rate=16000, channels=1, preroll_ms=500, blocksize=320,
-                 device=None):
+    """The stream is opened on demand (hotkey press) and released after a short
+    linger, so macOS's orange mic-in-use indicator only shows while dictating."""
+
+    def __init__(self, sample_rate=16000, channels=1, preroll_ms=500, blocksize=320):
         self.sample_rate = sample_rate
         self.channels = channels
         self.blocksize = blocksize
@@ -18,11 +20,7 @@ class Recorder:
         self._recording = False
         self.level = 0.0
         self._lock = threading.Lock()
-        kwargs = {"device": device} if device is not None else {}
-        self._stream = sd.InputStream(
-            samplerate=sample_rate, channels=channels, dtype="float32",
-            blocksize=blocksize, callback=self._callback, **kwargs,
-        )
+        self._stream = None
 
     def _callback(self, indata, frames, time_info, status):
         block = indata.copy()
@@ -33,30 +31,57 @@ class Recorder:
             else:
                 self._preroll.append(block)
 
-    def start_stream(self):
-        self._stream.start()
+    @property
+    def is_open(self):
+        return self._stream is not None
 
-    def rebuild(self, resolver=None):
-        """Re-open the stream so it binds to the CURRENT system default (or the
-        device the resolver picks). PortAudio must be re-initialized to see
-        hardware changes. Call only while not recording; returns False if busy."""
-        with self._lock:
-            if self._recording:
-                return False
-        try:
-            self._stream.stop()
-            self._stream.close()
-        except Exception:
-            pass
+    def open(self, resolver=None):
+        """Open the mic bound to the CURRENT system default (or the device the
+        resolver picks). PortAudio is re-initialized first so it sees hardware
+        that (dis)connected since the last open."""
+        if self._stream is not None:
+            return
         sd._terminate()
         sd._initialize()
         device = resolver() if resolver else None
         kwargs = {"device": device} if device is not None else {}
+        self._preroll.clear()
         self._stream = sd.InputStream(
             samplerate=self.sample_rate, channels=self.channels, dtype="float32",
             blocksize=self.blocksize, callback=self._callback, **kwargs,
         )
         self._stream.start()
+
+    def release(self):
+        """Close the stream so macOS drops the mic-in-use indicator. No-op if
+        recording (caller guards, but stay safe)."""
+        with self._lock:
+            if self._recording:
+                return
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                pass
+        self.level = 0.0
+
+    def rebuild(self, resolver=None):
+        """Re-open an already-open stream against the current default device.
+        Call only while not recording; returns False if busy."""
+        with self._lock:
+            if self._recording:
+                return False
+        if self._stream is None:
+            return True  # nothing open; the next open() binds fresh anyway
+        try:
+            self._stream.stop()
+            self._stream.close()
+        except Exception:
+            pass
+        self._stream = None
+        self.open(resolver)
         return True
 
     def start(self):
@@ -76,5 +101,7 @@ class Recorder:
         return np.concatenate(chunks).flatten()
 
     def close(self):
-        self._stream.stop()
-        self._stream.close()
+        if self._stream is not None:
+            self._stream.stop()
+            self._stream.close()
+            self._stream = None
