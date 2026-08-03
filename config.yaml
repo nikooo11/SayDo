@@ -21,8 +21,13 @@ llm:
   base_url: http://localhost:11434
   temperature: 0.1
   min_words_for_cleanup: 10   # utterances under this word count skip Ollama entirely
-  # dictation never waits longer than this for cleanup — on a miss the raw
-  # transcript is injected; two misses in a row turn cleanup off for the session
+  # HARD dictation budget: text lands within this many seconds of key
+  # release. Cleanup only runs in whatever time transcription leaves over;
+  # when it can't fit, the raw transcript (already punctuated by Parakeet,
+  # fillers stripped) is injected instead.
+  max_latency_s: 1.0
+  # absolute cap on any single cleanup call (rewrite and cloud paths);
+  # two consecutive misses turn cleanup off for the session
   cleanup_timeout_s: 6
   system_prompt: |
     You are a transcript cleaner. You receive raw speech-to-text output.

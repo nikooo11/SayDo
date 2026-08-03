@@ -8,6 +8,7 @@ Cleanup always degrades to raw transcripts instead of failing.
 """
 import os
 import re
+import time
 
 import requests
 
@@ -115,28 +116,37 @@ class Cleaner:
         except requests.RequestException:
             return False
 
-    def clean(self, text):
+    def clean(self, text, deadline=None):
+        """deadline: monotonic time by which the text must be ready (the
+        dictation latency budget). The LLM only runs if it can plausibly
+        answer in the time remaining; otherwise the transcript ships as-is
+        — Parakeet output is already punctuated and capitalized."""
         text = strip_fillers(text)
         # LATENCY RULE: short utterances skip the LLM entirely.
         if not self.backend or not text or len(text.split()) < self.min_words:
             return text
+        timeout = self.clean_timeout
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining < 0.35:
+                return text  # no time left for a round-trip
+            timeout = min(timeout, remaining)
         try:
             if self.backend == "api":
-                out = self._clean_api(text) or text
+                out = self._clean_api(text, timeout) or text
             else:
-                out = self._clean_ollama(text) or text
+                out = self._clean_ollama(text, timeout) or text
             self._slow_strikes = 0
             return out
         except requests.Timeout:
             self._slow_strikes += 1
             if self._slow_strikes >= 2:
-                print(f"Cleanup: engine missed the {self.clean_timeout:.0f}s "
-                      "budget twice in a row — raw transcripts for this "
-                      "session. A free Groq key in Settings restores fast "
-                      "cleanup.")
+                print(f"Cleanup: engine missed a {timeout:.1f}s budget twice "
+                      "in a row — raw transcripts for this session. A free "
+                      "Groq key in Settings restores fast cleanup.")
                 self.backend = None
             else:
-                print(f"Cleanup took over {self.clean_timeout:.0f}s; "
+                print(f"Cleanup missed its {timeout:.1f}s budget; "
                       "using raw transcript.")
             return text
         except requests.RequestException as e:
@@ -157,10 +167,9 @@ class Cleaner:
             print(f"Rewrite failed ({e}).")
             return None
 
-    def _clean_api(self, text):
+    def _clean_api(self, text, timeout):
         system = self.cfg.get("system_prompt", "") + _speaker_notes()
-        return self._ask_api(system, EDIT_INSTRUCTION + text,
-                             timeout=self.clean_timeout)
+        return self._ask_api(system, EDIT_INSTRUCTION + text, timeout=timeout)
 
     def _ask_api(self, system, prompt, timeout=15):
         r = requests.post(
@@ -179,12 +188,12 @@ class Cleaner:
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
 
-    def _clean_ollama(self, text):
+    def _clean_ollama(self, text, timeout):
         # Small models treat bare text as something to answer, not clean —
         # the explicit edit instruction forces edit-only behavior.
         system = self.cfg.get("system_prompt", "") + _speaker_notes()
         return self._ask_ollama(system, EDIT_INSTRUCTION + text,
-                                timeout=self.clean_timeout)
+                                timeout=timeout)
 
     def _ask_ollama(self, system, prompt, timeout=30):
         r = requests.post(

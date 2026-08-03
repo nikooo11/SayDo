@@ -196,16 +196,6 @@ def main():
     stt = Transcriber(cfg["stt"])
     state = {"cleaner": Cleaner(cfg["llm"]), "front_app": None}
 
-    def _warm_stt():
-        # first Parakeet inference includes MLX kernel warm-up (~3s); doing it
-        # on silence now keeps the first real dictation instant
-        try:
-            import numpy as np
-            stt.transcribe(np.zeros(8000, dtype=np.float32))
-        except Exception:
-            pass
-    threading.Thread(target=_warm_stt, daemon=True).start()
-
     def _ensure_local_cleanup():
         """Local cleanup without the Ollama menu bar app: if the config wants
         Ollama and no server is up, spawn the headless CLI and re-init the
@@ -220,7 +210,19 @@ def main():
         if ollama_setup.ensure_server(base) and state["cleaner"].backend != "ollama":
             state["cleaner"] = Cleaner(cfg["llm"])
         state["cleaner"].warm()  # preload the model off the dictation path
-    threading.Thread(target=_ensure_local_cleanup, daemon=True).start()
+
+    def _warm_boot():
+        # first Parakeet inference includes MLX kernel warm-up (~3s); doing it
+        # on silence now keeps the first real dictation fast. STT first, THEN
+        # the cleanup model: warming both at once makes them fight for the
+        # GPU, and a dictation landing in that window pays for it.
+        try:
+            import numpy as np
+            stt.transcribe(np.zeros(8000, dtype=np.float32))
+        except Exception:
+            pass
+        _ensure_local_cleanup()
+    threading.Thread(target=_warm_boot, daemon=True).start()
 
     import atexit
     atexit.register(lambda: __import__("ollama_setup").stop_server())
@@ -413,28 +415,37 @@ def main():
         threading.Thread(target=_arm, daemon=True).start()
 
     def process(audio):
-        t0 = time.time()
+        t0 = time.monotonic()
+        # HARD LATENCY BUDGET: text must be on screen within this many
+        # seconds of key release. Cleanup only gets whatever the budget has
+        # left after transcription; raw Parakeet text ships otherwise.
+        budget = float(cfg["llm"].get("max_latency_s", 1.0))
         app_name = state.get("front_app")
         # read rules live from cfg so saved settings apply without a restart
         mode = appmodes.resolve_mode(
             app_name, (cfg.get("app_modes") or {}).get("rules") or [])
         rms = float((audio ** 2).mean()) ** 0.5 if audio.size else 0.0
         raw = stt.transcribe(audio)
+        t_stt = time.monotonic() - t0
         if not raw:
             print(f"(no speech detected — {audio.size} samples, rms {rms:.6f})")
             return
         text = dictionary.apply_corrections(raw)
         text = dictionary.apply_fuzzy(text)
         if mode == "standard":
-            text = state["cleaner"].clean(text)
+            text = state["cleaner"].clean(text, deadline=t0 + budget)
         if mode != "raw":
             text = snippets.apply(text)
         if mode == "code":
             text = appmodes.code_postprocess(text)
+        if not text.strip():
+            print(f'(nothing left after cleanup of "{raw}")')
+            return
         inject.inject(text, cfg["inject"])
         history.append(text, audio.size / cfg["audio"]["sample_rate"], app=app_name)
         tag = f"  [{mode} · {app_name}]" if mode != "standard" else ""
-        print(f'→ "{text}"{tag}  ({time.time() - t0:.2f}s)')
+        total = time.monotonic() - t0
+        print(f'→ "{text}"{tag}  ({total:.2f}s, stt {t_stt:.2f}s)')
 
     def process_rewrite(audio):
         """Voice rewrite: the recording is an instruction, applied to whatever
