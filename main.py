@@ -147,7 +147,7 @@ def main():
     from AppKit import NSImage
     from bundle import resource_dir
     _dock_icon = NSImage.alloc().initWithContentsOfFile_(
-        str(resource_dir() / "ui" / "logo.png"))
+        str(resource_dir() / "ui" / "dockicon.png"))  # has Apple-grid margins
     if _dock_icon is not None:
         app.setApplicationIconImage_(_dock_icon)
 
