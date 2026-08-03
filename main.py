@@ -418,6 +418,7 @@ def main():
             print(f"(no speech detected — {audio.size} samples, rms {rms:.6f})")
             return
         text = dictionary.apply_corrections(raw)
+        text = dictionary.apply_fuzzy(text)
         if mode == "standard":
             text = state["cleaner"].clean(text)
         if mode != "raw":

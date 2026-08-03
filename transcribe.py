@@ -7,17 +7,67 @@ Engines (stt.engine in config.yaml):
   mlx-whisper    — Whisper on the Neural Engine (optional path).
 
 Parakeet has no initial-prompt vocabulary biasing, so custom-dictionary terms
-are enforced downstream (misspelling corrections + LLM cleanup vocabulary).
+are enforced downstream (misspelling corrections, fuzzy dictionary snapping,
+LLM cleanup vocabulary).
 """
 import queue
-import tempfile
 import threading
-import wave
-from pathlib import Path
 
 import numpy as np
 
 PARAKEET_DEFAULT = "mlx-community/parakeet-tdt-0.6b-v2"
+
+
+CHUNK_S = 120.0    # long recordings are chunked to bound attention memory
+OVERLAP_S = 15.0
+
+
+def _pk_transcribe_array(model, audio):
+    """model.transcribe() for an in-memory float32 array. Mirrors the library's
+    file path minus load_audio(), which shells out to ffmpeg per call: the
+    packaged app has no homebrew on PATH (dictation would die), and skipping
+    the temp wav + subprocess also shaves per-dictation latency."""
+    import mlx.core as mx
+    from parakeet_mlx.alignment import (
+        merge_longest_common_subsequence,
+        merge_longest_contiguous,
+        sentences_to_result,
+        tokens_to_sentences,
+    )
+    from parakeet_mlx.audio import get_logmel
+    from parakeet_mlx.parakeet import DecodingConfig
+
+    cfg = model.preprocessor_config
+    decoding = DecodingConfig()
+    data = mx.array(audio.astype(np.float32))
+    sr = cfg.sample_rate
+    if audio.size / sr <= CHUNK_S:
+        return model.generate(get_logmel(data, cfg), decoding_config=decoding)[0]
+
+    chunk = int(CHUNK_S * sr)
+    overlap = int(OVERLAP_S * sr)
+    all_tokens = []
+    for start in range(0, len(data), chunk - overlap):
+        end = min(start + chunk, len(data))
+        if end - start < cfg.hop_length:
+            break  # prevent zero-length log mel
+        result = model.generate(get_logmel(data[start:end], cfg),
+                                decoding_config=decoding)[0]
+        offset = start / sr
+        for sentence in result.sentences:
+            for token in sentence.tokens:
+                token.start += offset
+                token.end = token.start + token.duration
+        if not all_tokens:
+            all_tokens = result.tokens
+            continue
+        try:
+            all_tokens = merge_longest_contiguous(
+                all_tokens, result.tokens, overlap_duration=OVERLAP_S)
+        except RuntimeError:
+            all_tokens = merge_longest_common_subsequence(
+                all_tokens, result.tokens, overlap_duration=OVERLAP_S)
+    return sentences_to_result(tokens_to_sentences(all_tokens, decoding.sentence))
 
 
 class _ParakeetWorker:
@@ -45,33 +95,21 @@ class _ParakeetWorker:
             return
         self._ready.set()
         while True:
-            path, box, done = self._q.get()
+            audio, box, done = self._q.get()
             try:
-                box["result"] = self._model.transcribe(
-                    path, chunk_duration=120.0, overlap_duration=15.0)
+                box["result"] = _pk_transcribe_array(self._model, audio)
             except Exception as e:
                 box["error"] = e
             done.set()
 
-    def transcribe(self, path):
+    def transcribe(self, audio):
+        """audio: mono float32 ndarray at 16kHz -> AlignedResult."""
         box, done = {}, threading.Event()
-        self._q.put((path, box, done))
+        self._q.put((audio, box, done))
         done.wait()
         if "error" in box:
             raise box["error"]
         return box["result"]
-
-
-def _write_wav(audio, sample_rate=16000):
-    """float32 mono ndarray -> temp 16-bit wav path (parakeet-mlx wants a file)."""
-    path = tempfile.mktemp(suffix=".wav", prefix="saydo-")
-    pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
-    with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(sample_rate)
-        w.writeframes(pcm.tobytes())
-    return path
 
 
 class Transcriber:
@@ -120,11 +158,7 @@ class Transcriber:
         if audio.size == 0:
             return []
         if self._pk is not None:
-            path = _write_wav(audio)
-            try:
-                result = self._pk.transcribe(path)
-            finally:
-                Path(path).unlink(missing_ok=True)
+            result = self._pk.transcribe(audio)
             out = [{"start": float(s.start), "end": float(s.end),
                     "text": s.text.strip()}
                    for s in getattr(result, "sentences", []) if s.text.strip()]

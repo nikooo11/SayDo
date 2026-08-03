@@ -649,7 +649,7 @@ settings() {
       ${hp('The speech engine that turns your voice into text. Parakeet is the most accurate and the fastest on Apple silicon; it understands English only. The Whisper sizes below it trade speed for accuracy and handle other languages.')}</div>
       <div class="sd">Parakeet: best accuracy, instant, English. Whisper sizes: slower, multilingual.</div></div>
       <select id="setModel"><option value="parakeet" ${c.stt.engine==='parakeet'?'selected':''}>Parakeet (recommended)</option>
-      ${['tiny.en','base','small','medium','large-v3'].map(m =>
+      ${['tiny.en','base.en','small.en','medium.en','large-v3'].map(m =>
         `<option value="${m}" ${c.stt.engine!=='parakeet'&&c.stt.model===m?'selected':''}>Whisper ${m}</option>`).join('')}</select></div>
 
     <div class="sec reveal" style="--i:5">Cleanup</div>

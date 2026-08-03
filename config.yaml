@@ -1,7 +1,7 @@
 stt:
   engine: parakeet            # parakeet (best accuracy, English) | faster-whisper | mlx-whisper
   parakeet_model: mlx-community/parakeet-tdt-0.6b-v2
-  model: tiny.en              # whisper fallback: tiny.en | base | small | medium | large-v3
+  model: small.en             # whisper fallback: tiny.en | base | small.en | medium | large-v3
   language: null              # whisper only: null = auto-detect, or e.g. "en"
   compute_type: int8          # int8 is fastest on CPU for CTranslate2
   beam_size: 5                # whisper only: beam search beats greedy decoding

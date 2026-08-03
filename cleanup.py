@@ -7,8 +7,24 @@ Backend selection (llm.mode in config.yaml):
 Cleanup always degrades to raw transcripts instead of failing.
 """
 import os
+import re
 
 import requests
+
+# Unambiguous verbal fillers stripped instantly by regex, before (and without)
+# any LLM: zero-latency cleanup for short utterances and shorter LLM inputs
+# for long ones. Context-dependent fillers (like, you know) stay LLM-only.
+_FILLERS = re.compile(r"(?:\b(?:um+|uh+|uhm+|erm+|mhm+)\b[,.;]?\s*)", re.IGNORECASE)
+
+
+def strip_fillers(text):
+    out = _FILLERS.sub("", text)
+    out = re.sub(r"\s{2,}", " ", out).strip()
+    out = re.sub(r"\s+([,.!?;:])", r"\1", out)
+    # re-capitalize sentence starts the removal may have exposed
+    out = re.sub(r"(^|[.!?]\s+)([a-z])",
+                 lambda m: m.group(1) + m.group(2).upper(), out)
+    return out
 
 EDIT_INSTRUCTION = (
     "Copy the following text exactly, but: delete filler words "
@@ -96,6 +112,7 @@ class Cleaner:
             return False
 
     def clean(self, text):
+        text = strip_fillers(text)
         # LATENCY RULE: short utterances skip the LLM entirely.
         if not self.backend or not text or len(text.split()) < self.min_words:
             return text
