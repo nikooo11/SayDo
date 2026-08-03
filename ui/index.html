@@ -926,11 +926,18 @@ function pollStatus() {
   }, 600);
 }
 
-/* periodic data refresh so new dictations appear while the window is open */
+/* periodic data refresh so new dictations appear while the window is open.
+   Re-render ONLY when the data actually changed, otherwise the page would
+   visibly redraw (and replay its animations) every few seconds. */
+const histSig = h => (h?.length || 0) + ':' + (h?.[0]?.ts ?? '');
+let lastRefreshSig = null;
 setInterval(async () => {
   if (!S || !native) return;
   const r = await call('refresh');
+  const sig = histSig(r.history);
   S.history = r.history; S.stats = r.stats; S.most_corrected = r.most_corrected;
+  if (sig === lastRefreshSig) return;
+  lastRefreshSig = sig;
   if (cur === 'dictation' || cur === 'history') {
     const el = document.getElementById(cur === 'history' ? 'hq' : null);
     if (!el || !el.value) render();
@@ -957,6 +964,7 @@ async function checkUpdate() {
 /* boot */
 (async () => {
   S = await call('init');
+  lastRefreshSig = histSig(S.history);
   document.getElementById('ver').textContent = 'v' + S.version;
   if (!S.onboarded) cur = 'welcome';
   buildNav(); render();
