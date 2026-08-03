@@ -23,7 +23,7 @@ cp -RL "$MODEL_CACHE"/*/ build/model-staging/
   main.py
 
 PLIST=dist/SayDo.app/Contents/Info.plist
-plutil -replace LSUIElement -bool true "$PLIST"
+plutil -replace LSUIElement -bool false "$PLIST"
 plutil -replace NSMicrophoneUsageDescription \
   -string "SayDo records your voice to transcribe it into text." "$PLIST"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$PLIST"

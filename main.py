@@ -139,11 +139,17 @@ def main():
     from AppKit import NSApplication, NSMenu, NSMenuItem, NSSound, NSStatusBar
     from PyObjCTools import AppHelper
     from overlay import Overlay
-    from window import Dashboard, MenuTarget, write_config
+    from window import AppDelegate, Dashboard, MenuTarget, write_config
 
     rename_app()
     app = NSApplication.sharedApplication()
-    app.setActivationPolicy_(1)  # accessory: no Dock icon
+    app.setActivationPolicy_(0)  # regular: shows in the Dock
+    from AppKit import NSImage
+    from bundle import resource_dir
+    _dock_icon = NSImage.alloc().initWithContentsOfFile_(
+        str(resource_dir() / "ui" / "logo.png"))
+    if _dock_icon is not None:
+        app.setApplicationIconImage_(_dock_icon)
 
     from window import permissions_status
     print(f"permissions: {permissions_status()}")
@@ -295,6 +301,8 @@ def main():
         _flag.unlink(missing_ok=True)
         AppHelper.callAfter(dashboard.open)
     menu_target = MenuTarget.alloc().initWithDashboard_(dashboard)
+    app_delegate = AppDelegate.alloc().initWithDashboard_(dashboard)
+    app.setDelegate_(app_delegate)
 
     # menu bar icon so SayDo is visible/controllable like a normal app
     status = NSStatusBar.systemStatusBar().statusItemWithLength_(-1)

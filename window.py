@@ -296,6 +296,22 @@ class MenuTarget(NSObject):
         self.dashboard.open()
 
 
+class AppDelegate(NSObject):
+    """Regular-app behavior: clicking the Dock icon reopens the dashboard."""
+
+    def initWithDashboard_(self, dashboard):
+        self = objc.super(AppDelegate, self).init()
+        if self is None:
+            return None
+        self.dashboard = dashboard
+        return self
+
+    def applicationShouldHandleReopen_hasVisibleWindows_(self, _app, has_windows):
+        if not has_windows:
+            self.dashboard.open()
+        return True
+
+
 def write_config(cfg, path):
     with open(path, "w") as f:
         yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
