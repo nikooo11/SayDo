@@ -34,9 +34,6 @@ UI_DEFAULTS = {"flow_bar": True, "sounds": True, "mute_music": False}
 # settings that need a full engine restart to apply
 RESTART_KEYS = {"hotkey", "stt", "audio"}
 
-# keep the mic open this long after a dictation so back-to-back dictations are
-# instant, then release it so macOS drops the orange mic-in-use indicator
-MIC_LINGER_S = 10
 
 
 def check_permissions():
@@ -298,9 +295,6 @@ def main():
 
     def on_press():
         state["front_app"] = appmodes.frontmost_app_name()
-        timer = state.pop("mic_timer", None)
-        if timer is not None:
-            timer.cancel()
         if cfg["ui"].get("mute_music"):
             threading.Thread(target=ducker.pause, daemon=True).start()
         play_sound("Pop")
@@ -343,10 +337,8 @@ def main():
             threading.Thread(target=ducker.resume, daemon=True).start()
         AppHelper.callAfter(overlay.hide)
         threading.Thread(target=process, args=(audio,), daemon=True).start()
-        timer = threading.Timer(MIC_LINGER_S, _release_mic)
-        timer.daemon = True
-        timer.start()
-        state["mic_timer"] = timer
+        # release immediately so the macOS mic-in-use pill clears right away
+        threading.Thread(target=_release_mic, daemon=True).start()
 
     PushToTalk(key, on_press, on_release, mode=mode).start()
     action = "Press" if mode == "toggle" else "Hold"
