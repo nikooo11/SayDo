@@ -1,9 +1,16 @@
-"""System-wide push-to-talk hotkey via pynput.
+"""System-wide push-to-talk hotkeys via pynput.
 
 Supports a single key ("alt_r") or a chord ("ctrl+alt"), and two modes:
   hold   — record while the keys are held, stop on release
   toggle — press the chord once to start, press it again to stop
 Note: macOS does not expose the fn key to apps, so fn can't be used.
+
+All PushToTalk instances share ONE pynput Listener. Each Listener runs its
+own thread and calls the Text Input Sources API (TISCopyCurrentKeyboardInput-
+Source) on startup; macOS aborts the process when TIS is entered from two
+threads concurrently, so starting a second Listener (e.g. the rewrite chord
+next to the dictation chord) crashes the app at boot. Never create more than
+one Listener in this process.
 """
 from pynput import keyboard
 
@@ -20,6 +27,9 @@ KEY_MAP = {
 
 
 class PushToTalk:
+    _handlers = []
+    _listener = None
+
     def __init__(self, key_name, on_press, on_release, mode="hold"):
         names = [n.strip() for n in key_name.split("+")]
         unknown = [n for n in names if n not in KEY_MAP]
@@ -32,7 +42,6 @@ class PushToTalk:
         self._down = set()
         self._chord_held = False   # chord physically complete right now
         self._recording = False    # logical recording state (drives toggle mode)
-        self._listener = keyboard.Listener(on_press=self._press, on_release=self._release)
 
     def _press(self, key):
         if key not in self.chord:
@@ -61,10 +70,26 @@ class PushToTalk:
                 self._recording = False
                 self.on_release_cb()
 
+    @classmethod
+    def _dispatch_press(cls, key):
+        for handler in list(cls._handlers):
+            handler._press(key)
+
+    @classmethod
+    def _dispatch_release(cls, key):
+        for handler in list(cls._handlers):
+            handler._release(key)
+
     def start(self):
-        """Start listening without blocking (for use alongside an AppKit run loop)."""
-        self._listener.start()
+        """Register this chord and start the shared listener (non-blocking)."""
+        cls = PushToTalk
+        if self not in cls._handlers:
+            cls._handlers.append(self)
+        if cls._listener is None:
+            cls._listener = keyboard.Listener(
+                on_press=cls._dispatch_press, on_release=cls._dispatch_release)
+            cls._listener.start()
 
     def run(self):
-        self._listener.start()
-        self._listener.join()
+        self.start()
+        PushToTalk._listener.join()
