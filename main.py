@@ -392,10 +392,15 @@ def main():
         def _arm():
             # Bluetooth mics (AirPods) take 1-2s to deliver audio after open,
             # so opening must never block the hotkey thread or the overlay.
+            t0 = time.monotonic()
             try:
                 if not rec.is_open:
                     _open_mic()
+                t1 = time.monotonic()
                 rec.wait_for_frames(4.0)
+                t2 = time.monotonic()
+                print(f"(arm timing: open {t1 - t0:.2f}s, "
+                      f"first frame {t2 - t1:.2f}s)")
             except Exception as e:
                 print(f"mic open failed: {e}")
                 return
