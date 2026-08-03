@@ -36,6 +36,29 @@ class Recorder:
     def start_stream(self):
         self._stream.start()
 
+    def rebuild(self, resolver=None):
+        """Re-open the stream so it binds to the CURRENT system default (or the
+        device the resolver picks). PortAudio must be re-initialized to see
+        hardware changes. Call only while not recording; returns False if busy."""
+        with self._lock:
+            if self._recording:
+                return False
+        try:
+            self._stream.stop()
+            self._stream.close()
+        except Exception:
+            pass
+        sd._terminate()
+        sd._initialize()
+        device = resolver() if resolver else None
+        kwargs = {"device": device} if device is not None else {}
+        self._stream = sd.InputStream(
+            samplerate=self.sample_rate, channels=self.channels, dtype="float32",
+            blocksize=self.blocksize, callback=self._callback, **kwargs,
+        )
+        self._stream.start()
+        return True
+
     def start(self):
         """Begin recording; the pre-roll buffer is prepended so the first word isn't clipped."""
         with self._lock:

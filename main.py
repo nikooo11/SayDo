@@ -157,12 +157,45 @@ def main():
     )
     rec.start_stream()
 
+    def _current_input_name():
+        import sounddevice as sd
+        try:
+            return sd.query_devices(sd.default.device[0])["name"]
+        except Exception:
+            return "unknown"
+
+    print(f"capturing from: {_current_input_name()}")
+
     def _mic_probe():
         time.sleep(2.5)
         for _ in range(4):
             print(f"mic level probe: {rec.level:.6f}")
             time.sleep(0.6)
     threading.Thread(target=_mic_probe, daemon=True).start()
+
+    def _watch_input_devices():
+        """Follow the system default mic: AirPods connect -> capture from them;
+        disconnect -> back to the MacBook mic. Retries while a recording is live."""
+        import coreaudio
+        try:
+            applied = coreaudio.input_signature()
+        except Exception:
+            return
+        while True:
+            time.sleep(2)
+            try:
+                cur = coreaudio.input_signature()
+            except Exception:
+                continue
+            if cur == applied or rec._recording:
+                continue
+            try:
+                if rec.rebuild(lambda: resolve_input_device(cfg["audio"].get("device"))):
+                    applied = cur
+                    print(f"input device changed — now capturing from: {_current_input_name()}")
+            except Exception as e:
+                print(f"input switch failed ({e}); retrying")
+    threading.Thread(target=_watch_input_devices, daemon=True).start()
 
     key = cfg["hotkey"]["key"]
     mode = cfg["hotkey"].get("mode", "hold")

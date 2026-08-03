@@ -31,7 +31,7 @@ import scratchpad
 import snippets
 from bundle import resource_dir
 
-APP_VERSION = "2.2"
+APP_VERSION = "2.3"
 
 RELEASES_API = "https://api.github.com/repos/nikooo11/SayDo/releases/latest"
 
