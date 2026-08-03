@@ -7,8 +7,8 @@
 @font-face{font-family:'Instrument Serif';src:url('assets/fonts/InstrumentSerif-Regular.ttf');font-weight:400}
 @font-face{font-family:'Instrument Serif';src:url('assets/fonts/InstrumentSerif-Italic.ttf');font-style:italic}
 :root{
-  --bg:#0c0c0f; --panel:#141419; --panel-2:#1a1a21; --line:rgba(255,255,255,.07);
-  --text:#e8e6e1; --muted:#8b8a93; --faint:#5b5a63;
+  --bg:#0d1016; --panel:#12151c; --panel-2:#181c24; --line:rgba(255,255,255,.08);
+  --text:#e9e7e2; --muted:#8f909a; --faint:#5d5f6a;
   --amber:#e8a33d; --amber-soft:rgba(232,163,61,.14); --green:#69c87e;
   --serif:'Instrument Serif',Georgia,serif;
   --sans:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
@@ -31,32 +31,31 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;opacity:.05;z-
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:98;
   background:radial-gradient(1200px 700px at 70% -10%, rgba(232,163,61,.05), transparent 55%)}
 
-.app{display:flex;height:100vh;padding:6px 12px 12px 0;gap:2px}
+.app{display:flex;height:100vh}
 
 /* ── sidebar ─────────────────────────────── */
-.side{width:216px;min-width:216px;padding:34px 12px 16px;
-  display:flex;flex-direction:column;background:transparent}
-.brand{display:flex;align-items:center;gap:9px;padding:0 10px 22px}
-.brand .logo{width:27px;height:27px;border-radius:7px;box-shadow:0 1px 6px rgba(0,0,0,.5)}
-.brand .name{font:italic 23px var(--serif);letter-spacing:.2px}
+.side{width:248px;min-width:248px;padding:40px 20px 20px;
+  display:flex;flex-direction:column;background:transparent;border-right:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:11px;padding:0 8px 30px}
+.brand .logo{width:30px;height:30px;border-radius:8px;box-shadow:0 1px 8px rgba(0,0,0,.5)}
+.brand .name{font:italic 24px var(--serif);letter-spacing:.2px}
 .brand .tier{font-size:9.5px;letter-spacing:.14em;color:var(--amber);border:1px solid rgba(232,163,61,.4);
-  border-radius:4px;padding:1px 6px;text-transform:uppercase}
-.nav{display:flex;flex-direction:column;gap:2px}
-.nav button{display:flex;align-items:center;gap:11px;background:none;color:var(--muted);
-  padding:8.5px 10px;border-radius:9px;text-align:left;font-size:13px}
-.nav button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
-.nav button:hover{color:var(--text);background:rgba(255,255,255,.04)}
-.nav button.on{color:var(--text);background:rgba(255,255,255,.065)}
-.nav button.on svg{stroke:var(--amber)}
-.side .foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--line);
-  color:var(--faint);font-size:11px;display:flex;justify-content:space-between;align-items:center}
+  border-radius:5px;padding:1.5px 7px;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:7px}
+.nav button{display:flex;align-items:center;gap:13px;background:none;color:var(--muted);
+  padding:12px 14px;border-radius:12px;text-align:left;font-size:13.5px;border:1px solid transparent}
+.nav button svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+.nav button:hover{color:var(--text);background:rgba(255,255,255,.035)}
+.nav button.on{color:var(--text);background:rgba(255,255,255,.045);border-color:var(--line)}
+.nav button.on svg{stroke:var(--amber);filter:drop-shadow(0 0 6px rgba(232,163,61,.7))}
+.side .foot{margin-top:auto;color:var(--faint);font-size:11.5px;display:flex;
+  justify-content:space-between;align-items:center;border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px}
 .dot-live{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px}
 
-/* ── main: inset rounded panel, Flow-style ── */
-.main{flex:1;overflow-y:auto;padding:40px 44px 60px;position:relative;
-  background:#111116;border:1px solid var(--line);border-radius:16px;
-  box-shadow:0 10px 34px rgba(0,0,0,.38)}
-.page{max-width:880px;margin:0 auto}
+/* ── main: flat canvas on the shared surface ── */
+.main{flex:1;overflow-y:auto;padding:44px 52px 64px;position:relative}
+.page{max-width:1120px;margin:0 auto}
 .page.leaving{animation:pgOut .16s ease forwards}
 @keyframes pgOut{to{opacity:0;transform:translateY(6px)}}
 .reveal{opacity:0;animation:up .5s cubic-bezier(.22,.9,.28,1) forwards;animation-delay:calc(var(--i,0)*70ms)}
@@ -67,19 +66,25 @@ h1.pg em{color:var(--amber)}
 .sub{color:var(--muted);margin-bottom:28px;font-size:13px}
 .k{font:400 15px var(--sans);font-weight:600;letter-spacing:.01em}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
-.row2{display:grid;grid-template-columns:1fr 292px;gap:18px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.row2{display:grid;grid-template-columns:1fr 330px;gap:24px;align-items:start}
+
+/* header row with monogram */
+.pghead{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.avatar{width:44px;height:44px;border-radius:50%;border:1px solid rgba(232,163,61,.55);
+  display:flex;align-items:center;justify-content:center;color:var(--amber);
+  font-size:13px;letter-spacing:.08em;flex:none;margin-top:6px}
 
 /* hero */
-.hero{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);min-height:196px;
-  display:flex;flex-direction:column;justify-content:center;padding:30px 34px}
+.hero{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);min-height:330px;
+  display:flex;flex-direction:column;justify-content:center;padding:40px 42px}
 .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
 .hero .shade{position:absolute;inset:0;z-index:1;
-  background:linear-gradient(92deg, rgba(10,10,13,.93) 22%, rgba(10,10,13,.55) 55%, rgba(10,10,13,.08))}
+  background:linear-gradient(92deg, rgba(11,13,18,.95) 30%, rgba(11,13,18,.6) 55%, rgba(11,13,18,.05))}
 .hero>*{position:relative;z-index:2}
-.hero h2{font:400 30px/1.15 var(--serif);margin-bottom:8px}
+.hero h2{font:400 42px/1.12 var(--serif);margin-bottom:14px}
 .hero h2 em{font-style:italic;color:var(--amber)}
-.hero p{color:#c9c7c0;max-width:400px;font-size:13px}
+.hero p{color:#c9c7c0;max-width:340px;font-size:13.5px;line-height:1.6}
 
 /* status strip */
 .status{display:flex;gap:14px;align-items:center;margin-top:18px}
@@ -114,24 +119,53 @@ h1.pg em{color:var(--amber)}
 .dategrp{color:var(--faint);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
   margin:20px 0 4px;padding-left:6px}
 
-/* home feed */
-.feed{margin-top:20px}
+/* home feed with timeline dots */
+.feed{margin-top:26px}
 .feedhead{display:flex;justify-content:space-between;align-items:center;color:var(--faint);
-  font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin:18px 2px 8px}
+  font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin:20px 2px 10px}
 .feed .feedhead:first-of-type{margin-top:0}
-.feedcard{padding:4px 18px}
-.hrow .iconbtn{opacity:0;transition:opacity .15s}
-.hrow:hover .iconbtn,.hrow .iconbtn:focus{opacity:1}
+.feedcard{padding:6px 20px 6px 30px;position:relative}
+.feedcard .hrow{position:relative;padding:16px 6px}
+.feedcard .hrow::before{content:'';position:absolute;left:-19px;top:22px;width:7px;height:7px;
+  border-radius:50%;border:1.5px solid rgba(232,163,61,.75);background:transparent}
+.feedcard .hrow:first-child::before{background:var(--amber);border-color:var(--amber);
+  box-shadow:0 0 10px rgba(232,163,61,.9)}
+.hrow .iconbtn,.hrow .kebab{opacity:0;transition:opacity .15s}
+.hrow:hover .iconbtn,.hrow:hover .kebab,.hrow .kebab:focus{opacity:1}
 
 /* stat stack (right rail) */
-.statstack{padding:6px 20px}
-.statstack .srow2{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-  padding:15px 0;border-bottom:1px solid var(--line)}
+.statstack{padding:10px 24px}
+.statstack .srow2{display:flex;align-items:center;gap:18px;
+  padding:20px 0;border-bottom:1px solid var(--line)}
 .statstack .srow2:last-child{border-bottom:none}
-.statstack .n{font:400 30px/1 var(--serif)}
-.statstack .l{color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
-.vp{cursor:pointer;transition:border-color .18s}
+.statstack .badge{width:44px;height:44px;border-radius:12px;border:1px solid rgba(232,163,61,.45);
+  display:flex;align-items:center;justify-content:center;color:var(--amber);flex:none;
+  box-shadow:0 0 14px rgba(232,163,61,.12) inset, 0 0 10px rgba(232,163,61,.1)}
+.statstack .badge svg{width:23px;height:23px;stroke:var(--amber);fill:none;stroke-width:1.6}
+.statstack .badge.flame svg{fill:var(--amber);stroke:none;filter:drop-shadow(0 0 7px rgba(232,163,61,.8))}
+.statstack .badge .glyph{font:400 23px var(--serif)}
+.statstack .n{font:400 36px/1 var(--serif)}
+.statstack .l{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  margin-left:auto;text-align:right}
+.vp{cursor:pointer;transition:border-color .18s;position:relative;overflow:hidden;padding:24px}
 .vp:hover{border-color:rgba(232,163,61,.35)}
+.vp .wave{position:absolute;left:0;right:0;bottom:-6px;width:100%;height:150px;object-fit:cover;
+  object-position:bottom;pointer-events:none;opacity:.9;
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 55%)}
+.vp .body{position:relative;z-index:1}
+.vp .go{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:8px 14px;
+  color:var(--text);font-size:12.5px;margin-top:14px;background:rgba(13,16,22,.55)}
+.vp:hover .go{border-color:rgba(232,163,61,.4);color:var(--amber)}
+
+/* kebab row menu */
+.kebab{background:none;color:var(--faint);padding:2px 8px;border-radius:6px;font-size:15px;
+  letter-spacing:1px;line-height:1}
+.kebab:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.rowmenu{position:fixed;z-index:120;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:10px;padding:5px;box-shadow:0 12px 30px rgba(0,0,0,.55);min-width:130px}
+.rowmenu button{display:block;width:100%;text-align:left;background:none;color:var(--text);
+  padding:8px 12px;border-radius:7px;font-size:12.5px}
+.rowmenu button:hover{background:rgba(255,255,255,.06)}
 
 /* help tooltips */
 .help{position:relative;display:inline-flex;align-items:center;justify-content:center;
@@ -409,16 +443,19 @@ dictation() {
     groups[groups.length - 1].items.push(item);
   }
   return `
-  <div class="reveal" style="--i:0">
-    <h1 class="pg">${greet}${who}.</h1>
-    <p class="sub">Everything below happened on this Mac. Nothing leaves it.</p>
+  <div class="pghead reveal" style="--i:0">
+    <div>
+      <h1 class="pg">${greet}${who}.</h1>
+      <p class="sub">Everything below happened on this Mac. Nothing leaves it.</p>
+    </div>
+    ${S.initials ? `<div class="avatar">${esc(S.initials)}</div>` : ''}
   </div>
   <div class="row2">
     <div>
       <div class="hero reveal" style="--i:1">
         <img src="assets/banner.jpg" alt="">
         <div class="shade"></div>
-        <h2>Speak. <em>It types.</em></h2>
+        <h2>Speak.<br><em>It types.</em></h2>
         <p>Hold the chord in any app, talk naturally, release. Clean text lands at your cursor.</p>
         <div class="status">
           <span class="pill" id="recpill"><span class="rec"></span><span id="recword">Standing by</span></span>
@@ -435,21 +472,26 @@ dictation() {
            <div class="card feedcard"><div class="empty">Hold the chord and say something. It appears here.</div></div>`}
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:24px">
       <div class="card statstack reveal" style="--i:2">
-        <div class="srow2"><span class="n">${fmtN(st.total_words)}</span><span class="l">total words</span></div>
-        <div class="srow2"><span class="n">${st.wpm||'·'}</span><span class="l">words / minute</span></div>
-        <div class="srow2"><span class="n">${st.streak}</span><span class="l">day streak</span></div>
+        <div class="srow2"><span class="badge"><span class="glyph">A</span></span>
+          <span class="n">${fmtN(st.total_words)}</span><span class="l">total words</span></div>
+        <div class="srow2"><span class="badge"><svg viewBox="0 0 24 24"><path d="M12 14l4.5-5M4.5 17.5a9 9 0 1 1 15 0"/><circle cx="12" cy="15" r="1.6"/></svg></span>
+          <span class="n">${st.wpm||'·'}</span><span class="l">words / minute</span></div>
+        <div class="srow2"><span class="badge flame"><svg viewBox="0 0 24 24"><path d="M12 2c.6 3.6-2.7 5.4-2.7 8.6a2.7 2.7 0 0 0 5.4.2c1.2 1 2 2.5 2 4.2a4.7 4.7 0 1 1-9.4 0C7.3 9.8 13.4 8.6 12 2z"/></svg></span>
+          <span class="n">${st.streak}</span><span class="l">day streak</span></div>
       </div>
       <div class="card vp reveal" style="--i:4" onclick="go('insights')">
-        <div class="lab" style="color:var(--faint);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px">Voice profile</div>
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
-          <div>
-            <div style="font:400 21px var(--serif)">${esc(v.profile)}</div>
-            <div style="color:var(--muted);font-size:12px;margin-top:5px">${esc(v.profile_blurb)}</div>
-            <span class="iconbtn" style="margin-top:8px;padding-left:0;display:inline-block">Open insights →</span>
+        <img class="wave" src="assets/wave.jpg" alt="" onerror="this.remove()">
+        <div class="body">
+          <div class="lab" style="color:var(--faint);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">Voice profile</div>
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+            <div style="font:400 26px var(--serif)">${esc(v.profile)}</div>
+            <div style="font:italic 40px/0.6 var(--serif);color:rgba(232,163,61,.55)">”</div>
           </div>
-          <div style="font:italic 46px/0.6 var(--serif);color:rgba(232,163,61,.3);padding-top:14px">”</div>
+          <div style="color:var(--muted);font-size:12.5px;margin-top:8px;line-height:1.6">${esc(v.profile_blurb)}</div>
+          <span class="go">Open insights →</span>
+          <div style="height:110px"></div>
         </div>
       </div>
     </div>
@@ -651,9 +693,23 @@ function hRow(h) {
   return `<div class="hrow"><span class="t">${fmtTime(h.ts)}</span>
     ${h.app ? `<span class="appchip" title="${esc(h.app)}">${esc(h.app)}</span>` : ''}
     <span class="x">${esc(h.text)}</span><span class="w">${h.words}w</span>
-    <button class="iconbtn" onclick="copyText(this)" data-t="${esc(h.text)}">Copy</button></div>`;
+    <button class="kebab" onclick="rowMenu(event, this)" data-t="${esc(h.text)}">⋮</button></div>`;
 }
 window.copyText = btn => { call('copy', {text: btn.dataset.t}); toast('Copied to clipboard'); };
+window.rowMenu = (ev, btn) => {
+  ev.stopPropagation();
+  document.querySelector('.rowmenu')?.remove();
+  const m = document.createElement('div');
+  m.className = 'rowmenu';
+  m.innerHTML = '<button>Copy text</button>';
+  m.firstChild.onclick = () => { call('copy', {text: btn.dataset.t}); toast('Copied to clipboard'); m.remove(); };
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect();
+  m.style.left = Math.min(r.left, innerWidth - m.offsetWidth - 12) + 'px';
+  m.style.top = (r.bottom + 6) + 'px';
+  const close = e => { if (!m.contains(e.target)) { m.remove(); removeEventListener('mousedown', close); } };
+  addEventListener('mousedown', close);
+};
 window.go = go;
 
 /* ── wiring ────────────────────────────── */

@@ -135,12 +135,15 @@ class _Bridge(NSObject):
         if op == "init":
             try:
                 from Foundation import NSFullUserName
-                first_name = str(NSFullUserName()).split()[0]
+                parts = str(NSFullUserName()).split()
+                first_name = parts[0] if parts else ""
+                initials = "".join(p[0] for p in parts[:2]).upper()
             except Exception:
-                first_name = ""
+                first_name, initials = "", ""
             return {
                 "version": APP_VERSION,
                 "user": first_name,
+                "initials": initials,
                 "config": c.cfg,
                 "status": c.status(),
                 "history": list(reversed(history.read_all())),
@@ -278,7 +281,7 @@ class Dashboard:
         from AppKit import NSColor
         # match the page background so the titlebar merges with the content
         self.window.setBackgroundColor_(
-            NSColor.colorWithSRGBRed_green_blue_alpha_(0.047, 0.047, 0.059, 1.0))
+            NSColor.colorWithSRGBRed_green_blue_alpha_(0.051, 0.063, 0.086, 1.0))
         self.window.setMinSize_((860, 560))
         self.window.setReleasedWhenClosed_(False)
 
