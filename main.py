@@ -295,17 +295,28 @@ def main():
 
     def on_press():
         state["front_app"] = appmodes.frontmost_app_name()
+        state["press_seq"] = seq = state.get("press_seq", 0) + 1
+        state["held"] = True
         if cfg["ui"].get("mute_music"):
             threading.Thread(target=ducker.pause, daemon=True).start()
-        play_sound("Pop")
-        try:
-            if not rec.is_open:
-                _open_mic()
-        except Exception as e:
-            print(f"mic open failed: {e}")
-            return
-        rec.start()
         AppHelper.callAfter(overlay.show)
+
+        def _arm():
+            # Bluetooth mics (AirPods) take 1-2s to deliver audio after open,
+            # so opening must never block the hotkey thread or the overlay.
+            try:
+                if not rec.is_open:
+                    _open_mic()
+                rec.wait_for_frames(4.0)
+            except Exception as e:
+                print(f"mic open failed: {e}")
+                return
+            if state.get("press_seq") == seq and state.get("held"):
+                rec.start()
+                play_sound("Pop")  # ready — speak from here
+            elif not rec._recording:
+                rec.release()  # released before the mic came up
+        threading.Thread(target=_arm, daemon=True).start()
 
     def process(audio):
         t0 = time.time()
@@ -331,6 +342,7 @@ def main():
         print(f'→ "{text}"{tag}  ({time.time() - t0:.2f}s)')
 
     def on_release():
+        state["held"] = False
         audio = rec.stop()
         play_sound("Bottle")
         if cfg["ui"].get("mute_music"):

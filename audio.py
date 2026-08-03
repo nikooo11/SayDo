@@ -19,10 +19,12 @@ class Recorder:
         self._chunks = []
         self._recording = False
         self.level = 0.0
+        self._frames = 0
         self._lock = threading.Lock()
         self._stream = None
 
     def _callback(self, indata, frames, time_info, status):
+        self._frames += 1
         block = indata.copy()
         self.level = float(np.sqrt((block ** 2).mean()))  # RMS for waveform + level meter
         with self._lock:
@@ -46,11 +48,23 @@ class Recorder:
         device = resolver() if resolver else None
         kwargs = {"device": device} if device is not None else {}
         self._preroll.clear()
+        self._frames = 0
         self._stream = sd.InputStream(
             samplerate=self.sample_rate, channels=self.channels, dtype="float32",
             blocksize=self.blocksize, callback=self._callback, **kwargs,
         )
         self._stream.start()
+
+    def wait_for_frames(self, timeout=4.0):
+        """Block until the stream actually delivers audio (Bluetooth mics take
+        1-2s to spin up after start()). Returns True once frames flow."""
+        import time
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._frames > 0:
+                return True
+            time.sleep(0.02)
+        return self._frames > 0
 
     def release(self):
         """Close the stream so macOS drops the mic-in-use indicator. No-op if
