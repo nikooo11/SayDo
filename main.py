@@ -37,18 +37,29 @@ RESTART_KEYS = {"hotkey", "stt", "audio"}
 
 
 def check_permissions():
-    """Best-effort permission probes; print one-time setup guidance if missing."""
+    """Probe the three permissions and, when missing, actively request them so
+    SayDo shows up (under its own name) in the System Settings panes."""
     import Quartz
     msgs = []
     try:
         if not Quartz.CGPreflightListenEventAccess():
             msgs.append("Input Monitoring (for the global hotkey)")
+            Quartz.CGRequestListenEventAccess()
     except AttributeError:
         pass
     try:
         from ApplicationServices import AXIsProcessTrusted
         if not AXIsProcessTrusted():
             msgs.append("Accessibility (to paste text into other apps)")
+            from ApplicationServices import AXIsProcessTrustedWithOptions
+            AXIsProcessTrustedWithOptions({"AXTrustedCheckOptionPrompt": True})
+    except Exception:
+        pass
+    try:
+        from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
+        if AVCaptureDevice.authorizationStatusForMediaType_(AVMediaTypeAudio) == 0:
+            AVCaptureDevice.requestAccessForMediaType_completionHandler_(
+                AVMediaTypeAudio, lambda ok: None)  # notDetermined -> prompt now
     except Exception:
         pass
     if msgs:
