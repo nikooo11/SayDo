@@ -192,6 +192,18 @@ def main():
 
     from window import permissions_status
     print(f"permissions: {permissions_status()}")
+
+    # App Nap kills dictation latency: as a mostly-window-less status-bar
+    # app, SayDo gets CPU/GPU-throttled while idle, and the first
+    # transcription after a nap ran 10-70x slower than the same model in a
+    # fresh process (14s for a 10s utterance vs 0.2s). Hold a user-initiated
+    # activity for the app's lifetime; idle system sleep stays allowed.
+    from Foundation import (NSActivityUserInitiatedAllowingIdleSystemSleep,
+                            NSProcessInfo)
+    _no_nap = NSProcessInfo.processInfo().beginActivityWithOptions_reason_(
+        NSActivityUserInitiatedAllowingIdleSystemSleep,
+        "push-to-talk dictation must transcribe immediately")
+
     print(f"Loading STT engine ({cfg['stt'].get('engine', 'parakeet')})...")
     stt = Transcriber(cfg["stt"])
     state = {"cleaner": Cleaner(cfg["llm"]), "front_app": None}
@@ -209,7 +221,9 @@ def main():
         base = (llm.get("ollama") or {}).get("base_url", "http://localhost:11434")
         if ollama_setup.ensure_server(base) and state["cleaner"].backend != "ollama":
             state["cleaner"] = Cleaner(cfg["llm"])
-        state["cleaner"].warm()  # preload the model off the dictation path
+        # deliberately NOT preloading the cleanup model: 3GB resident on the
+        # GPU pressures Parakeet's memory (the priority is dictation speed);
+        # rewrite loads it on demand and it unloads again after keep_alive
 
     def _warm_boot():
         # first Parakeet inference includes MLX kernel warm-up (~3s); doing it
@@ -222,6 +236,18 @@ def main():
         except Exception:
             pass
         _ensure_local_cleanup()
+        # keep the model hot between dictations: the wired limit stops the
+        # OS paging the weights, and a ~50ms silent inference every idle
+        # minute keeps kernels and activation buffers warm as well
+        while True:
+            time.sleep(60)
+            if state.get("held"):
+                continue
+            try:
+                import numpy as np
+                stt.transcribe(np.zeros(4000, dtype=np.float32))
+            except Exception:
+                pass
     threading.Thread(target=_warm_boot, daemon=True).start()
 
     import atexit
@@ -428,7 +454,8 @@ def main():
         raw = stt.transcribe(audio)
         t_stt = time.monotonic() - t0
         if not raw:
-            print(f"(no speech detected — {audio.size} samples, rms {rms:.6f})")
+            print(f"(no speech detected — {audio.size} samples, "
+                  f"rms {rms:.6f}, stt {t_stt:.2f}s)")
             return
         text = dictionary.apply_corrections(raw)
         text = dictionary.apply_fuzzy(text)
@@ -480,7 +507,18 @@ def main():
         if cfg["ui"].get("mute_music"):
             threading.Thread(target=ducker.resume, daemon=True).start()
         AppHelper.callAfter(overlay.hide)
-        threading.Thread(target=processor, args=(audio,), daemon=True).start()
+
+        def _process_urgent():
+            # the user is waiting for text on screen — run the pipeline at
+            # user-interactive QoS (spawned from the low-QoS hotkey thread,
+            # which this would otherwise inherit)
+            try:
+                import ctypes
+                ctypes.CDLL(None).pthread_set_qos_class_self_np(0x21, 0)
+            except Exception:
+                pass
+            processor(audio)
+        threading.Thread(target=_process_urgent, daemon=True).start()
         # release immediately so the macOS mic-in-use pill clears right away
         threading.Thread(target=_release_mic, daemon=True).start()
 

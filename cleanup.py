@@ -204,7 +204,7 @@ class Cleaner:
                 "prompt": prompt,
                 "stream": False,
                 "think": False,  # disable reasoning mode (qwen3 etc.) — cleanup must be instant
-                "keep_alive": "60m",  # don't pay a model reload after 5 idle minutes
+                "keep_alive": "5m",  # unload soon after use — 3GB resident starves Parakeet
                 "options": {"temperature": float(self.cfg.get("temperature", 0.1))},
             },
             timeout=timeout,
@@ -220,7 +220,7 @@ class Cleaner:
             requests.post(
                 f"{self.ollama_base}/api/generate",
                 json={"model": self.ollama_model, "prompt": "hi",
-                      "stream": False, "think": False, "keep_alive": "60m",
+                      "stream": False, "think": False, "keep_alive": "5m",
                       "options": {"num_predict": 1}},
                 timeout=120,
             )

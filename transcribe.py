@@ -86,9 +86,25 @@ class _ParakeetWorker:
         self._ready.wait()
 
     def _run(self, model_name):
+        # Dictation latency rides on this thread's priority: TDT decoding
+        # submits hundreds of tiny Metal kernels per utterance, and at
+        # default QoS in a background app each submission eats a scheduling
+        # penalty (observed ~1x realtime in-app vs ~0.02x for the same model
+        # in a foreground CLI). User-interactive QoS removes it.
+        try:
+            import ctypes
+            ctypes.CDLL(None).pthread_set_qos_class_self_np(0x21, 0)
+        except Exception:
+            pass
         try:
             from parakeet_mlx import from_pretrained
             self._model = from_pretrained(model_name)
+            # Wire the model into GPU-resident memory. Without this, macOS
+            # pages MLX buffers out after a few idle minutes and the next
+            # dictation pays seconds of re-faulting (observed 8-15s for an
+            # utterance that transcribes in <1s when hot).
+            import mlx.core as mx
+            mx.set_wired_limit(3 * 1024 ** 3)
         except Exception as e:
             self.error = e
             self._ready.set()
