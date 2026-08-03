@@ -5,14 +5,38 @@ Supports a single key ("alt_r") or a chord ("ctrl+alt"), and two modes:
   toggle — press the chord once to start, press it again to stop
 Note: macOS does not expose the fn key to apps, so fn can't be used.
 
-All PushToTalk instances share ONE pynput Listener. Each Listener runs its
-own thread and calls the Text Input Sources API (TISCopyCurrentKeyboardInput-
-Source) on startup; macOS aborts the process when TIS is entered from two
-threads concurrently, so starting a second Listener (e.g. the rewrite chord
-next to the dictation chord) crashes the app at boot. Never create more than
-one Listener in this process.
+TIS/TSM crash rule (macOS 26 aborts on violation — EXC_CRASH in HIToolbox,
+"TIS/TSM API is being called in two threads concurrently"): in a UI app the
+Text Input Sources API may only be called on the MAIN thread, and AppKit
+itself calls it there (menu shortcut updates). pynput's Listener thread
+calls TISCopyCurrentKeyboardInputSource when building its keycode context,
+which races AppKit and kills the app. Two defenses here, both required:
+  1. _freeze_keycode_context() captures the keyboard-layout context ON THE
+     MAIN THREAD once and patches pynput to reuse it, so listener threads
+     never touch TIS. (Chords use modifier keys only, so a stale layout
+     after a keyboard-layout switch is harmless.)
+  2. All PushToTalk instances share ONE Listener; never create a second.
+PushToTalk.start() must be called from the main thread.
 """
+import contextlib
+
 from pynput import keyboard
+from pynput._util import darwin as _pynput_util_darwin
+from pynput.keyboard import _darwin as _pynput_kb_darwin
+
+
+def _freeze_keycode_context():
+    """Run pynput's TIS-touching context setup on the calling (main) thread
+    and make every future keycode_context() reuse the result."""
+    with _pynput_util_darwin.keycode_context() as ctx:
+        cached = ctx
+
+    @contextlib.contextmanager
+    def _cached_context():
+        yield cached
+
+    _pynput_util_darwin.keycode_context = _cached_context
+    _pynput_kb_darwin.keycode_context = _cached_context
 
 KEY_MAP = {
     "alt": keyboard.Key.alt,        # left Option
@@ -81,11 +105,13 @@ class PushToTalk:
             handler._release(key)
 
     def start(self):
-        """Register this chord and start the shared listener (non-blocking)."""
+        """Register this chord and start the shared listener (non-blocking).
+        Must be called from the main thread (see module docstring)."""
         cls = PushToTalk
         if self not in cls._handlers:
             cls._handlers.append(self)
         if cls._listener is None:
+            _freeze_keycode_context()
             cls._listener = keyboard.Listener(
                 on_press=cls._dispatch_press, on_release=cls._dispatch_release)
             cls._listener.start()

@@ -54,9 +54,16 @@ def ensure_server(base_url, wait_s=25):
     if cli is None:
         return False
     if _server_proc is None or _server_proc.poll() is not None:
+        # Pin the universal binary to arm64: a server that ends up under
+        # Rosetta (e.g. relaunched by a translated updater) spawns Intel
+        # runners — no Metal GPU, ~2 tok/s cleanup, and macOS "Support
+        # Ending for Intel-based Apps" popups.
+        cmd = [str(cli), "serve"]
+        import platform
+        if platform.machine() == "arm64":
+            cmd = ["/usr/bin/arch", "-arm64"] + cmd
         _server_proc = subprocess.Popen(
-            [str(cli), "serve"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(wait_s * 2):
         if _ping(base_url):
             return True
