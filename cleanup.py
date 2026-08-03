@@ -18,6 +18,41 @@ EDIT_INSTRUCTION = (
     "summarize, or reply to it. Do not add anything.\n\n"
 )
 
+REWRITE_SYSTEM = (
+    "You rewrite text on request. You receive an instruction and a text. "
+    "Apply the instruction to the text and output ONLY the rewritten text — "
+    "no preamble, no quotes, no commentary. Do not introduce em dashes "
+    "unless the original text already uses them."
+)
+
+
+def _speaker_notes():
+    """Vocabulary + about-the-speaker context appended to the system prompt so
+    the cleanup model can rescue names and jargon the ear got wrong."""
+    notes = []
+    try:
+        import dictionary
+        vocab = dictionary.words()
+        if vocab:
+            notes.append(
+                "The speaker often uses these terms; when a word in the "
+                "transcript sounds like one of them, use this exact spelling: "
+                + ", ".join(vocab) + "."
+            )
+    except Exception:
+        pass
+    try:
+        import usercontext
+        ctx = usercontext.text()
+        if ctx:
+            notes.append(
+                "Context about the speaker (use ONLY to fix misheard names "
+                "and terms, never to add content): " + ctx
+            )
+    except Exception:
+        pass
+    return ("\n\n" + "\n".join(notes)) if notes else ""
+
 
 class Cleaner:
     def __init__(self, cfg):
@@ -72,19 +107,37 @@ class Cleaner:
             print(f"Cleanup failed ({e}); using raw transcript.")
             return text
 
+    def rewrite(self, text, instruction):
+        """Apply a spoken instruction to selected text. Returns None when no
+        backend is available or the call fails (caller leaves the text alone)."""
+        if not self.backend or not text or not instruction:
+            return None
+        prompt = f"Instruction: {instruction}\n\nText:\n{text}"
+        try:
+            if self.backend == "api":
+                return self._ask_api(REWRITE_SYSTEM, prompt, timeout=30) or None
+            return self._ask_ollama(REWRITE_SYSTEM, prompt) or None
+        except requests.RequestException as e:
+            print(f"Rewrite failed ({e}).")
+            return None
+
     def _clean_api(self, text):
+        system = self.cfg.get("system_prompt", "") + _speaker_notes()
+        return self._ask_api(system, EDIT_INSTRUCTION + text, timeout=15)
+
+    def _ask_api(self, system, prompt, timeout=15):
         r = requests.post(
             f"{self.api_base}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": self.api_model,
                 "messages": [
-                    {"role": "system", "content": self.cfg.get("system_prompt", "")},
-                    {"role": "user", "content": EDIT_INSTRUCTION + text},
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
                 ],
                 "temperature": float(self.cfg.get("temperature", 0.1)),
             },
-            timeout=15,
+            timeout=timeout,
         )
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
@@ -92,12 +145,16 @@ class Cleaner:
     def _clean_ollama(self, text):
         # Small models treat bare text as something to answer, not clean —
         # the explicit edit instruction forces edit-only behavior.
+        system = self.cfg.get("system_prompt", "") + _speaker_notes()
+        return self._ask_ollama(system, EDIT_INSTRUCTION + text)
+
+    def _ask_ollama(self, system, prompt):
         r = requests.post(
             f"{self.ollama_base}/api/generate",
             json={
                 "model": self.ollama_model,
-                "system": self.cfg.get("system_prompt", ""),
-                "prompt": EDIT_INSTRUCTION + text,
+                "system": system,
+                "prompt": prompt,
                 "stream": False,
                 "think": False,  # disable reasoning mode (qwen3 etc.) — cleanup must be instant
                 "options": {"temperature": float(self.cfg.get("temperature", 0.1))},

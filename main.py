@@ -82,15 +82,43 @@ def rename_app():
         pass
 
 
-def resolve_input_device(name):
-    """Config device name -> sounddevice index; None = system default."""
-    if not name:
-        return None
+def _find_input_index(name, fuzzy=False):
     import sounddevice as sd
     for i, d in enumerate(sd.query_devices()):
-        if d["max_input_channels"] > 0 and d["name"] == name:
+        if d["max_input_channels"] > 0 and (
+                d["name"] == name or (fuzzy and name.lower() in d["name"].lower())):
             return i
-    print(f'WARNING: input device "{name}" not found; using system default')
+    return None
+
+
+def resolve_input_device(audio_cfg):
+    """Audio config -> sounddevice index; None = system default.
+
+    With prefer_builtin on and no explicit device picked, a Bluetooth default
+    mic (AirPods) is bypassed for the Mac's built-in mic: Bluetooth recording
+    drops to narrowband hands-free audio, which measurably hurts accuracy.
+    """
+    name = audio_cfg.get("device")
+    if name:
+        idx = _find_input_index(name)
+        if idx is not None:
+            return idx
+        print(f'WARNING: input device "{name}" not found; using system default')
+        return None
+    if audio_cfg.get("prefer_builtin", True):
+        try:
+            import coreaudio
+            if coreaudio.default_input_is_bluetooth():
+                builtin = coreaudio.builtin_input_name()
+                idx = _find_input_index(builtin) if builtin else None
+                if idx is None:
+                    idx = _find_input_index("MacBook", fuzzy=True)
+                if idx is not None:
+                    print("default mic is Bluetooth; capturing from the "
+                          "built-in mic for accuracy")
+                    return idx
+        except Exception:
+            pass
     return None
 
 
@@ -164,9 +192,19 @@ def main():
 
     from window import permissions_status
     print(f"permissions: {permissions_status()}")
-    print(f"Loading STT model ({cfg['stt']['model']})...")
+    print(f"Loading STT engine ({cfg['stt'].get('engine', 'parakeet')})...")
     stt = Transcriber(cfg["stt"])
     state = {"cleaner": Cleaner(cfg["llm"]), "front_app": None}
+
+    def _warm_stt():
+        # first Parakeet inference includes MLX kernel warm-up (~3s); doing it
+        # on silence now keeps the first real dictation instant
+        try:
+            import numpy as np
+            stt.transcribe(np.zeros(8000, dtype=np.float32))
+        except Exception:
+            pass
+    threading.Thread(target=_warm_stt, daemon=True).start()
 
     def _ensure_local_cleanup():
         """Local cleanup without the Ollama menu bar app: if the config wants
@@ -201,7 +239,7 @@ def main():
     print(f"default mic: {_current_input_name()} (opens on dictation)")
 
     def _open_mic():
-        rec.open(lambda: resolve_input_device(cfg["audio"].get("device")))
+        rec.open(lambda: resolve_input_device(cfg["audio"]))
         print(f"mic opened — capturing from: {_current_input_name()}")
 
     def _release_mic():
@@ -229,7 +267,7 @@ def main():
                 applied = cur  # closed mic binds fresh on the next open
                 continue
             try:
-                if rec.rebuild(lambda: resolve_input_device(cfg["audio"].get("device"))):
+                if rec.rebuild(lambda: resolve_input_device(cfg["audio"])):
                     applied = cur
                     print(f"input device changed — now capturing from: {_current_input_name()}")
             except Exception as e:
@@ -259,7 +297,7 @@ def main():
         def status():
             return {"recording": rec._recording, "level": rec.level,
                     "cleanup": state["cleaner"].backend or "off",
-                    "model": cfg["stt"]["model"], "hotkey": key, "mode": mode}
+                    "model": stt.model_label, "hotkey": key, "mode": mode}
 
         @staticmethod
         def save_settings(partial):
@@ -301,6 +339,7 @@ def main():
             threading.Timer(0.3, lambda: AppHelper.callAfter(restart_app)).start()
 
     Controller.cfg = cfg
+    Controller.transcriber = stt
     dashboard = Dashboard(Controller)
     overlay.set_on_click(dashboard.open)
     # debug/automation hook: open the dashboard at launch if the flag file exists.
@@ -390,18 +429,57 @@ def main():
         tag = f"  [{mode} · {app_name}]" if mode != "standard" else ""
         print(f'→ "{text}"{tag}  ({time.time() - t0:.2f}s)')
 
-    def on_release():
+    def process_rewrite(audio):
+        """Voice rewrite: the recording is an instruction, applied to whatever
+        text is selected in the frontmost app."""
+        t0 = time.time()
+        instruction = stt.transcribe(audio)
+        if not instruction:
+            print("(rewrite: no instruction heard)")
+            return
+        selection = inject.get_selection()
+        if not selection.strip():
+            play_sound("Basso")
+            print("(rewrite: nothing selected — select text first, then hold the chord)")
+            return
+        if not state["cleaner"].backend:
+            play_sound("Basso")
+            print("(rewrite: needs a cleanup engine — set one up in Settings)")
+            return
+        new = state["cleaner"].rewrite(selection, instruction)
+        if not new:
+            play_sound("Basso")
+            return
+        inject.inject(new, cfg["inject"])
+        history.append(new, audio.size / cfg["audio"]["sample_rate"],
+                       app=state.get("front_app"))
+        print(f'↻ rewrote selection per "{instruction}"  ({time.time() - t0:.2f}s)')
+
+    def _end_recording(processor):
         state["held"] = False
         audio = rec.stop()
         play_sound("Bottle")
         if cfg["ui"].get("mute_music"):
             threading.Thread(target=ducker.resume, daemon=True).start()
         AppHelper.callAfter(overlay.hide)
-        threading.Thread(target=process, args=(audio,), daemon=True).start()
+        threading.Thread(target=processor, args=(audio,), daemon=True).start()
         # release immediately so the macOS mic-in-use pill clears right away
         threading.Thread(target=_release_mic, daemon=True).start()
 
+    def on_release():
+        _end_recording(process)
+
+    def on_release_rewrite():
+        _end_recording(process_rewrite)
+
     PushToTalk(key, on_press, on_release, mode=mode).start()
+    rewrite_key = cfg["hotkey"].get("rewrite_key")
+    if rewrite_key:
+        try:
+            PushToTalk(rewrite_key, on_press, on_release_rewrite, mode="hold").start()
+            print(f"Rewrite: select text, hold [{rewrite_key}], speak an instruction.")
+        except ValueError as e:
+            print(f"rewrite hotkey disabled: {e}")
     action = "Press" if mode == "toggle" else "Hold"
     print(f"{APP_NAME} ready. {action} [{key}] to dictate ({mode} mode).")
     try:

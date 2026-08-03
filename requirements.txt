@@ -1,4 +1,5 @@
 faster-whisper
+parakeet-mlx
 sounddevice
 pynput
 pyobjc-framework-Quartz

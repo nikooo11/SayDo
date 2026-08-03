@@ -206,6 +206,9 @@ h1.pg em{color:var(--amber)}
 .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
 .btn.ghost:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
 .btn:disabled{opacity:.4;cursor:default;filter:none}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid rgba(232,163,61,.25);
+  border-top-color:var(--amber);animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
 .lrow{display:flex;align-items:center;gap:14px;padding:13px 6px;border-bottom:1px solid var(--line)}
 .lrow:last-child{border-bottom:none}
 .lrow .main-t{flex:1;user-select:text}
@@ -322,16 +325,24 @@ function mock(op) {
     return window.__mockPct >= 100 ? {phase:'done', detail:'Local cleanup ready', pct:100}
       : {phase:'pulling', detail:'Downloading qwen3:4b-instruct…', pct:window.__mockPct};
   }
+  if (op === 'file.transcribe') { window.__mockFt = 0; return {started:true}; }
+  if (op === 'file.progress') {
+    window.__mockFt = (window.__mockFt ?? 99) + 1;
+    if (window.__mockFt < 3) return {phase:'transcribing', detail:'standup.mp4 (12 min)'};
+    return {phase:'done', detail:'standup.txt', out:'/Users/demo/standup.txt'};
+  }
   if (op !== 'init') return {};
   const daily = [...Array(14)].map((_, i) => ({day:'MTWTFSS'[i % 7], words: Math.floor(Math.random()*900)}));
   /* open with #welcome in a browser to preview the onboarding page */
   return {version:'2.1', launch_login:false, onboarded: location.hash !== '#welcome',
-    config:{hotkey:{key:'ctrl+cmd',mode:'hold'},stt:{model:'tiny.en'},inject:{restore_clipboard:true},
-      audio:{sample_rate:16000,channels:1,preroll_ms:500,device:null},
+    context:'',
+    config:{hotkey:{key:'ctrl+cmd',mode:'hold',rewrite_key:'ctrl+alt'},
+      stt:{engine:'parakeet',model:'tiny.en'},inject:{restore_clipboard:true},
+      audio:{sample_rate:16000,channels:1,preroll_ms:500,device:null,prefer_builtin:true},
       llm:{enabled:true,mode:'auto',api:{api_key:'',model:'llama-3.1-8b-instant'},model:'qwen3:4b-instruct'},
       app_modes:{rules:[{match:'Terminal',mode:'code'}]},
       ui:{flow_bar:true,sounds:true,mute_music:false}},
-    status:{recording:false,cleanup:'ollama',model:'tiny.en',hotkey:'ctrl+cmd',mode:'hold'},
+    status:{recording:false,cleanup:'ollama',model:'parakeet',hotkey:'ctrl+cmd',mode:'hold'},
     history:[{ts:Date.now()/1000-500,text:'Retrieve the audio from SupaBase instead of regenerating it every time.',words:11,duration_s:6,app:'Cursor'}],
     stats:{total_words:74023,sessions:512,wpm:157,streak:4,daily,
       voice:{profile:'Steady Drafter',profile_blurb:'You dictate in measured, sentence-sized passes.',
@@ -504,7 +515,14 @@ history() {
   <p class="sub">Every dictation, stored locally in a file you own.</p></div>
   <div class="searchbar reveal" style="--i:1">
     <input id="hq" placeholder="Search transcripts…">
+    <button class="btn ghost" id="ftBtn">Transcribe a file</button>
     <button class="btn ghost" id="clearH">Clear all</button>
+  </div>
+  <div class="card reveal" style="--i:1;display:none;padding:14px 20px" id="ftCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+      <span style="font-size:13px;color:var(--muted)" id="ftMsg"></span>
+      <span class="spin" id="ftSpin"></span>
+    </div>
   </div>
   <div class="card reveal" style="--i:2;padding:6px 20px" id="hlist"></div>`;
 },
@@ -613,17 +631,26 @@ settings() {
       <div class="sd">Hold: record while held. Toggle: press to start, press to stop.</div></div>
       <select id="setMode"><option value="hold" ${c.hotkey.mode==='hold'?'selected':''}>Hold</option>
       <option value="toggle" ${c.hotkey.mode==='toggle'?'selected':''}>Toggle</option></select></div>
-    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Microphone
+    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Rewrite shortcut
+      ${hp('Select text in any app, hold this combo, and say what to change: make it shorter, fix the tone, translate to Greek. Release and the selection is replaced. Needs a cleanup engine below.')}</div>
+      <div class="sd">Hold with text selected, speak an instruction, release.</div></div>
+      <button class="hkbtn" id="rwBtn"></button></div>
+    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Microphone
       ${hp('System default follows whatever your Mac is using right now, including AirPods when they connect. Pick a specific mic only if you always want that one.')}</div>
       <div class="sd">Which input SayDo listens to. The bar below shows the live signal.</div></div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:190px">
         <select id="setMic"><option value="">System default</option></select>
         <div class="meter"><div id="micMeter"></div></div></div></div>
-    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Accuracy
-      ${hp('The speech model that turns your voice into text. tiny.en is nearly instant. Bigger models catch more words but make you wait longer after you stop talking.')}</div>
-      <div class="sd">Bigger models are more accurate and slower. tiny.en is instant; small is a good step up.</div></div>
-      <select id="setModel">${['tiny.en','base','small','medium','large-v3'].map(m =>
-        `<option ${c.stt.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Prefer this Mac's microphone
+      ${hp('AirPods and other Bluetooth mics record in muffled phone-call quality, which costs accuracy. With this on, SayDo keeps listening through the Mac itself even while your audio plays in the AirPods. Turn it off if you dictate from across the room.')}</div>
+      <div class="sd">Skip Bluetooth mics and capture from the built-in mic. Clearer audio, better accuracy.</div></div>
+      ${sw('swBuiltin', c.audio?.prefer_builtin !== false)}</div>
+    <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Accuracy
+      ${hp('The speech engine that turns your voice into text. Parakeet is the most accurate and the fastest on Apple silicon; it understands English only. The Whisper sizes below it trade speed for accuracy and handle other languages.')}</div>
+      <div class="sd">Parakeet: best accuracy, instant, English. Whisper sizes: slower, multilingual.</div></div>
+      <select id="setModel"><option value="parakeet" ${c.stt.engine==='parakeet'?'selected':''}>Parakeet (recommended)</option>
+      ${['tiny.en','base','small','medium','large-v3'].map(m =>
+        `<option value="${m}" ${c.stt.engine!=='parakeet'&&c.stt.model===m?'selected':''}>Whisper ${m}</option>`).join('')}</select></div>
 
     <div class="sec reveal" style="--i:5">Cleanup</div>
     <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Cleanup engine
@@ -649,6 +676,12 @@ settings() {
           <div id="leBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--amber),#c9871f);border-radius:99px;transition:width .5s"></div>
         </div>
       </div>
+    </div>
+    <div class="card reveal" style="--i:6">
+      <div class="sl" style="margin-bottom:10px"><div class="st">About you
+        ${hp('A short note the cleanup engine reads so it spells your world correctly: your name, your products, the terms you use daily. It is only used to fix misheard words, never to change what you said. Stays on this Mac unless you use a cloud cleanup key.')}</div>
+        <div class="sd">Names, products, jargon. Helps cleanup fix words the ear got wrong.</div></div>
+      <textarea id="setCtx" rows="3" style="width:100%;resize:vertical" placeholder="Example: I am Niko. I build AirlinePilotPrep and SayDo. Frequent terms: Supabase, gouge, CJO, Stripe.">${esc(S.context||'')}</textarea>
     </div>
 
     <div class="sec reveal" style="--i:7">Per-app modes</div>
@@ -757,6 +790,41 @@ history() {
   document.getElementById('clearH').onclick = async () => {
     await call('history.clear'); S.history = []; draw(); toast('History cleared');
   };
+
+  /* manual file transcription: pick a file, poll progress, land a .txt + .srt
+     next to the source */
+  const ftCard = document.getElementById('ftCard'), ftMsg = document.getElementById('ftMsg'),
+        ftSpin = document.getElementById('ftSpin'), ftBtn = document.getElementById('ftBtn');
+  let ftTimer = null;
+  const ftStop = () => { clearInterval(ftTimer); ftTimer = null; };
+  const ftShow = p => {
+    if (!document.getElementById('ftCard')) { ftStop(); return; }
+    const busy = p.phase === 'decoding' || p.phase === 'transcribing';
+    ftBtn.disabled = busy;
+    ftCard.style.display = (busy || p.phase === 'done' || p.phase === 'error') ? '' : 'none';
+    ftSpin.style.display = busy ? '' : 'none';
+    if (p.phase === 'decoding') ftMsg.textContent = 'Reading ' + p.detail + '…';
+    if (p.phase === 'transcribing') ftMsg.textContent = 'Transcribing ' + p.detail + '…';
+    if (p.phase === 'done') {
+      ftMsg.innerHTML = 'Done. Saved <b>' + esc(p.detail) + '</b> and a matching .srt next to the original.';
+      ftStop();
+    }
+    if (p.phase === 'error') { ftMsg.textContent = 'Could not transcribe: ' + p.detail; ftStop(); }
+  };
+  const ftWatch = () => {
+    if (ftTimer) return;
+    ftTimer = setInterval(async () => {
+      if (cur !== 'history') { ftStop(); return; }
+      ftShow(await call('file.progress'));
+    }, 1500);
+  };
+  ftBtn.onclick = async () => {
+    const r = await call('file.transcribe');
+    if (r.cancelled) return;
+    if (!r.started) { toast('A transcription is already running'); return; }
+    ftShow({phase: 'decoding', detail: 'file'}); ftWatch();
+  };
+  call('file.progress').then(p => { ftShow(p); if (p.phase === 'decoding' || p.phase === 'transcribing') ftWatch(); });
 },
 insights() {},
 dictionary() {
@@ -850,7 +918,7 @@ scratchpad() {
   draw();
 },
 settings() {
-  ['swBar','swSnd','swMus','swLog'].forEach(id => {
+  ['swBar','swSnd','swMus','swLog','swBuiltin'].forEach(id => {
     const el = document.getElementById(id);
     el.onclick = () => el.classList.toggle('on');
   });
@@ -896,52 +964,58 @@ settings() {
   leBtn.onclick = async () => { await call('ollama.setup'); leWatch(); };
   leState();
 
-  /* hotkey capture: click, hold the chord, release to commit; Esc cancels */
+  /* hotkey capture: click, hold the chord, release to commit; Esc cancels.
+     Factory so both the dictation and rewrite shortcuts get the behavior. */
   const HK_ORDER = ['ctrl','ctrl_r','alt','alt_r','shift','cmd','cmd_r','f13'];
-  const hkBtn = document.getElementById('hkBtn');
-  let hkValue = S.config.hotkey.key, hkListen = false, hkHeld = new Set(), hkGot = new Set();
-  const hkShow = () => { hkBtn.textContent = hkListen ? 'Press your shortcut…' : prettyChord(hkValue); };
-  const hkStop = () => {
-    hkListen = false; hkBtn.classList.remove('listen');
-    window.removeEventListener('keydown', hkDown, true);
-    window.removeEventListener('keyup', hkUp, true);
-    window.removeEventListener('blur', hkStop);
-    if (hkBtn.isConnected) hkShow();
-  };
-  const hkReject = () => {
-    hkBtn.classList.add('bad'); setTimeout(() => hkBtn.classList.remove('bad'), 350);
-  };
   const evName = e => {                       // KeyboardEvent -> pynput config name
     const r = e.location === 2;               // location 2 = right-side modifier
     return {Control: r ? 'ctrl_r' : 'ctrl', Meta: r ? 'cmd_r' : 'cmd',
             Alt: r ? 'alt_r' : 'alt', Shift: 'shift', F13: 'f13'}[e.key] || null;
   };
-  const hkDown = e => {
-    e.preventDefault(); e.stopPropagation();
-    if (!hkBtn.isConnected || e.key === 'Escape') return hkStop();
-    const n = evName(e);
-    if (!n) return hkReject();                // only modifiers + f13 are valid
-    hkHeld.add(n); hkGot.add(n);
+  const hkCapture = (btn, initial) => {
+    let value = initial, listen = false, held = new Set(), got = new Set();
+    const show = () => { btn.textContent = listen ? 'Press your shortcut…' : prettyChord(value); };
+    const stop = () => {
+      listen = false; btn.classList.remove('listen');
+      window.removeEventListener('keydown', down, true);
+      window.removeEventListener('keyup', up, true);
+      window.removeEventListener('blur', stop);
+      if (btn.isConnected) show();
+    };
+    const reject = () => {
+      btn.classList.add('bad'); setTimeout(() => btn.classList.remove('bad'), 350);
+    };
+    const down = e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!btn.isConnected || e.key === 'Escape') return stop();
+      const n = evName(e);
+      if (!n) return reject();                // only modifiers + f13 are valid
+      held.add(n); got.add(n);
+    };
+    const up = e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!btn.isConnected) return stop();
+      const n = evName(e); if (n) held.delete(n);
+      if (held.size || !got.size) return;     // commit only when everything is released
+      const chord = HK_ORDER.filter(k => got.has(k)).join('+');
+      got = new Set();
+      if (!chord) return reject();
+      value = chord; stop();
+    };
+    btn.onclick = () => {
+      if (listen) return stop();
+      listen = true; held = new Set(); got = new Set();
+      btn.classList.add('listen'); show();
+      window.addEventListener('keydown', down, true);
+      window.addEventListener('keyup', up, true);
+      window.addEventListener('blur', stop);
+    };
+    show();
+    return {get: () => value};
   };
-  const hkUp = e => {
-    e.preventDefault(); e.stopPropagation();
-    if (!hkBtn.isConnected) return hkStop();
-    const n = evName(e); if (n) hkHeld.delete(n);
-    if (hkHeld.size || !hkGot.size) return;   // commit only when everything is released
-    const chord = HK_ORDER.filter(k => hkGot.has(k)).join('+');
-    hkGot = new Set();
-    if (!chord) return hkReject();
-    hkValue = chord; hkStop();
-  };
-  hkBtn.onclick = () => {
-    if (hkListen) return hkStop();
-    hkListen = true; hkHeld = new Set(); hkGot = new Set();
-    hkBtn.classList.add('listen'); hkShow();
-    window.addEventListener('keydown', hkDown, true);
-    window.addEventListener('keyup', hkUp, true);
-    window.addEventListener('blur', hkStop);
-  };
-  hkShow();
+  const hkMain = hkCapture(document.getElementById('hkBtn'), S.config.hotkey.key);
+  const hkRewrite = hkCapture(document.getElementById('rwBtn'),
+                              S.config.hotkey.rewrite_key || 'ctrl+alt');
 
   /* microphone picker + live input meter */
   const mic = document.getElementById('setMic');
@@ -986,25 +1060,34 @@ settings() {
   }, 300);
 
   document.getElementById('saveSet').onclick = async () => {
+    if (hkRewrite.get() === hkMain.get()) {
+      toast('The rewrite shortcut must differ from the dictation shortcut');
+      return;
+    }
+    const acc = document.getElementById('setModel').value;
     const partial = {
-      hotkey: {key: hkValue, mode: document.getElementById('setMode').value},
-      stt: {model: document.getElementById('setModel').value},
+      hotkey: {key: hkMain.get(), rewrite_key: hkRewrite.get(),
+               mode: document.getElementById('setMode').value},
+      stt: acc === 'parakeet' ? {engine: 'parakeet'}
+                              : {engine: 'faster-whisper', model: acc},
       llm: {mode: document.getElementById('setLlmMode').value,
             api: {api_key: document.getElementById('setKeyApi').value.trim()}},
       app_modes: {rules: amRules},
+      audio: {prefer_builtin: document.getElementById('swBuiltin').classList.contains('on')},
       ui: {flow_bar: document.getElementById('swBar').classList.contains('on'),
            sounds: document.getElementById('swSnd').classList.contains('on'),
            mute_music: document.getElementById('swMus').classList.contains('on'),
            launch_login: document.getElementById('swLog').classList.contains('on')},
     };
-    const dev = mic.value || null;
-    if (dev !== (S.config.audio?.device ?? null)) partial.audio = {device: dev};
+    partial.audio.device = mic.value || null;
+    const ctx = document.getElementById('setCtx').value;
+    if (ctx !== (S.context || '')) { await call('context.save', {text: ctx}); S.context = ctx; }
     const r = await call('settings.save', partial);
     S.launch_login = partial.ui.launch_login;
     Object.assign(S.config.hotkey, partial.hotkey);
     Object.assign(S.config.stt, partial.stt);
     S.config.app_modes = {rules: amRules.map(r => ({...r}))};
-    if (partial.audio) Object.assign(S.config.audio, partial.audio);
+    Object.assign(S.config.audio, partial.audio);
     toast(r.restarting ? 'Saved. <span class="amber">Restarting the engine…</span>' : 'Saved');
   };
 },

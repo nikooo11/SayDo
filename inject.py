@@ -6,6 +6,7 @@ import Quartz
 from AppKit import NSPasteboard, NSPasteboardItem, NSPasteboardTypeString
 
 KEY_V = 9  # macOS virtual keycode for 'v'
+KEY_C = 8  # macOS virtual keycode for 'c'
 
 
 def _set_clipboard(text):
@@ -41,14 +42,35 @@ def _restore_clipboard(items):
     pb.writeObjects_(objs)
 
 
-def _press_cmd_v():
+def _press_cmd_key(keycode):
     src = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
-    down = Quartz.CGEventCreateKeyboardEvent(src, KEY_V, True)
-    up = Quartz.CGEventCreateKeyboardEvent(src, KEY_V, False)
+    down = Quartz.CGEventCreateKeyboardEvent(src, keycode, True)
+    up = Quartz.CGEventCreateKeyboardEvent(src, keycode, False)
     Quartz.CGEventSetFlags(down, Quartz.kCGEventFlagMaskCommand)
     Quartz.CGEventSetFlags(up, Quartz.kCGEventFlagMaskCommand)
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+
+
+def _press_cmd_v():
+    _press_cmd_key(KEY_V)
+
+
+def get_selection():
+    """Text currently selected in the frontmost app, via a synthesized Cmd+C.
+    Restores the clipboard afterwards. Returns '' when nothing is selected."""
+    pb = NSPasteboard.generalPasteboard()
+    old = _snapshot_clipboard()
+    before = pb.changeCount()
+    _press_cmd_key(KEY_C)
+    # wait for the frontmost app to service the copy (or decide it won't)
+    for _ in range(30):
+        time.sleep(0.02)
+        if pb.changeCount() != before:
+            break
+    text = pb.stringForType_(NSPasteboardTypeString) if pb.changeCount() != before else None
+    _restore_clipboard(old)
+    return str(text) if text else ""
 
 
 def _type_unicode(text):

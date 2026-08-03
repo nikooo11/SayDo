@@ -1,8 +1,10 @@
 stt:
-  engine: faster-whisper      # faster-whisper | mlx-whisper (optional faster path)
-  model: tiny.en              # tiny.en | base | small | medium | large-v3
-  language: null              # null = auto-detect, or e.g. "en"
+  engine: parakeet            # parakeet (best accuracy, English) | faster-whisper | mlx-whisper
+  parakeet_model: mlx-community/parakeet-tdt-0.6b-v2
+  model: tiny.en              # whisper fallback: tiny.en | base | small | medium | large-v3
+  language: null              # whisper only: null = auto-detect, or e.g. "en"
   compute_type: int8          # int8 is fastest on CPU for CTranslate2
+  beam_size: 5                # whisper only: beam search beats greedy decoding
 
 llm:
   enabled: true
@@ -32,12 +34,19 @@ hotkey:
   key: ctrl+cmd
   # hold = record while keys are held | toggle = press once to start, again to stop
   mode: hold
+  # select text anywhere, hold this chord, speak an instruction ("make it
+  # shorter"), release: the selection is rewritten in place. null disables.
+  rewrite_key: ctrl+alt
 
 audio:
   sample_rate: 16000
   channels: 1
   preroll_ms: 500             # ring buffer so the first word isn't clipped
   device: null                # input device name (see Settings); null = system default
+  # Bluetooth mics (AirPods) drop to muffled hands-free audio while recording,
+  # which hurts accuracy. true = capture from the Mac's built-in mic instead
+  # whenever the system default is a Bluetooth device.
+  prefer_builtin: true
 
 app_modes:
   # per-app dictation modes. A rule matches when "match" is a case-insensitive

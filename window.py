@@ -24,11 +24,13 @@ from PyObjCTools import AppHelper
 from WebKit import WKUserContentController, WKWebView, WKWebViewConfiguration
 
 import dictionary
+import filetranscribe
 import history
 import launch_login
 import ollama_setup
 import scratchpad
 import snippets
+import usercontext
 from bundle import resource_dir
 
 APP_VERSION = "2.3"
@@ -152,6 +154,7 @@ class _Bridge(NSObject):
                 "most_corrected": dictionary.most_corrected(),
                 "snippets": snippets.entries(),
                 "notes": scratchpad.entries(),
+                "context": usercontext.text(),
                 "launch_login": launch_login.enabled(),
                 "onboarded": onboarded_flag().exists(),
             }
@@ -210,6 +213,23 @@ class _Bridge(NSObject):
         if op == "note.delete":
             scratchpad.delete(d["id"])
             return {"notes": scratchpad.entries()}
+        if op == "context.save":
+            usercontext.save(d.get("text", ""))
+            return {"ok": True}
+        if op == "file.transcribe":
+            from AppKit import NSApp, NSOpenPanel
+            NSApp.activateIgnoringOtherApps_(True)
+            panel = NSOpenPanel.openPanel()
+            panel.setCanChooseDirectories_(False)
+            panel.setAllowsMultipleSelection_(False)
+            panel.setMessage_("Choose an audio or video file to transcribe")
+            if panel.runModal() != 1 or not panel.URLs():
+                return {"started": False, "cancelled": True}
+            path = str(panel.URLs()[0].path())
+            started = filetranscribe.start(path, self.controller.transcriber)
+            return {"started": started}
+        if op == "file.progress":
+            return filetranscribe.progress()
         if op == "cleanup.state":
             llm = self.controller.cfg.get("llm") or {}
             base = (llm.get("base_url") or "http://localhost:11434").rstrip("/")
