@@ -150,6 +150,24 @@ def main():
     print(f"Loading STT model ({cfg['stt']['model']})...")
     stt = Transcriber(cfg["stt"])
     state = {"cleaner": Cleaner(cfg["llm"]), "front_app": None}
+
+    def _ensure_local_cleanup():
+        """Local cleanup without the Ollama menu bar app: if the config wants
+        Ollama and no server is up, spawn the headless CLI and re-init the
+        cleaner once it answers."""
+        llm = cfg.get("llm") or {}
+        mode = llm.get("mode", "auto")
+        has_key = bool((llm.get("api") or {}).get("api_key"))
+        if not llm.get("enabled") or mode == "api" or (mode == "auto" and has_key):
+            return
+        import ollama_setup
+        base = (llm.get("ollama") or {}).get("base_url", "http://localhost:11434")
+        if ollama_setup.ensure_server(base) and state["cleaner"].backend != "ollama":
+            state["cleaner"] = Cleaner(cfg["llm"])
+    threading.Thread(target=_ensure_local_cleanup, daemon=True).start()
+
+    import atexit
+    atexit.register(lambda: __import__("ollama_setup").stop_server())
     rec = Recorder(
         sample_rate=cfg["audio"]["sample_rate"],
         channels=cfg["audio"]["channels"],
@@ -245,6 +263,7 @@ def main():
             # live-apply what we can
             if "llm" in partial:
                 state["cleaner"] = Cleaner(cfg["llm"])
+                threading.Thread(target=_ensure_local_cleanup, daemon=True).start()
             if "ui" in partial:
                 if "flow_bar" in partial["ui"]:
                     AppHelper.callAfter(overlay.set_flow_bar, cfg["ui"]["flow_bar"])
@@ -258,6 +277,7 @@ def main():
         @staticmethod
         def reload_cleaner():
             state["cleaner"] = Cleaner(cfg["llm"])
+            threading.Thread(target=_ensure_local_cleanup, daemon=True).start()
 
         @staticmethod
         def restart():

@@ -17,6 +17,60 @@ import requests
 OLLAMA_ZIP = "https://ollama.com/download/Ollama-darwin.zip"
 APP = Path("/Applications/Ollama.app")
 
+_CLI_CANDIDATES = (
+    APP / "Contents" / "Resources" / "ollama",
+    Path("/opt/homebrew/bin/ollama"),
+    Path("/usr/local/bin/ollama"),
+)
+_server_proc = None
+
+
+def cli_path():
+    p = shutil.which("ollama")
+    if p:
+        return Path(p)
+    for c in _CLI_CANDIDATES:
+        if c.exists():
+            return c
+    return None
+
+
+def _ping(base_url):
+    try:
+        requests.get(f"{base_url}/api/tags", timeout=1.5)
+        return True
+    except requests.RequestException:
+        return False
+
+
+def ensure_server(base_url, wait_s=25):
+    """Make sure an Ollama server answers at base_url. If none is running,
+    spawn the bundled CLI headlessly (`ollama serve`) — no menu bar app
+    needed. Returns True once the server responds."""
+    global _server_proc
+    if _ping(base_url):
+        return True
+    cli = cli_path()
+    if cli is None:
+        return False
+    if _server_proc is None or _server_proc.poll() is not None:
+        _server_proc = subprocess.Popen(
+            [str(cli), "serve"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(wait_s * 2):
+        if _ping(base_url):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def stop_server():
+    """Terminate the server we spawned (never touches a desktop-app server)."""
+    global _server_proc
+    if _server_proc is not None and _server_proc.poll() is None:
+        _server_proc.terminate()
+    _server_proc = None
+
 _progress = {"phase": "idle", "detail": "", "pct": 0}
 _lock = threading.Lock()
 _thread = None
@@ -63,12 +117,7 @@ def _run(base_url, model, on_done):
             _download_app()
         if not state(base_url, model)["running"]:
             _set("starting", "Starting Ollama…", 0)
-            subprocess.run(["open", "-a", str(APP)], check=False)
-            for _ in range(60):
-                if state(base_url, model)["running"]:
-                    break
-                time.sleep(1)
-            else:
+            if not ensure_server(base_url, wait_s=60):
                 raise RuntimeError("Ollama did not start — open Ollama.app once manually")
         if not state(base_url, model)["model"]:
             _pull(base_url, model)
