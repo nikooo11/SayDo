@@ -36,7 +36,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:98;
 /* ── sidebar ─────────────────────────────── */
 .side{width:216px;min-width:216px;border-right:1px solid var(--line);padding:52px 12px 16px;
   display:flex;flex-direction:column;background:rgba(255,255,255,.014)}
-.brand{display:flex;align-items:baseline;gap:8px;padding:0 10px 22px}
+.brand{display:flex;align-items:center;gap:9px;padding:0 10px 22px}
+.brand .logo{width:27px;height:27px;border-radius:7px;box-shadow:0 1px 6px rgba(0,0,0,.5)}
 .brand .name{font:italic 23px var(--serif);letter-spacing:.2px}
 .brand .tier{font-size:9.5px;letter-spacing:.14em;color:var(--amber);border:1px solid rgba(232,163,61,.4);
   border-radius:4px;padding:1px 6px;text-transform:uppercase}
@@ -216,7 +217,7 @@ h1.pg em{color:var(--amber)}
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="name">SayDo</span><span class="tier">Studio</span></div>
+    <div class="brand"><img class="logo" src="logo.png" alt=""><span class="name">SayDo</span><span class="tier">Studio</span></div>
     <nav class="nav" id="nav"></nav>
     <div class="foot"><span><span class="dot-live"></span>On-device</span><span id="ver">v2.1</span></div>
   </aside>
@@ -337,6 +338,7 @@ welcome() {
     </div>`;
   return `
   <div class="reveal" style="--i:0">
+    <img src="logo.png" alt="" style="width:64px;height:64px;border-radius:15px;margin-bottom:16px;box-shadow:0 4px 18px rgba(0,0,0,.55)">
     <h1 class="pg">Welcome to <em>SayDo</em>.</h1>
     <p class="sub">Dictation that runs entirely on this Mac. Three permissions, then you can talk anywhere.</p>
   </div>

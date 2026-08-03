@@ -278,7 +278,17 @@ def main():
 
     # menu bar icon so SayDo is visible/controllable like a normal app
     status = NSStatusBar.systemStatusBar().statusItemWithLength_(-1)
-    status.button().setTitle_("🎙️")
+    from bundle import resource_dir
+    from AppKit import NSImage
+    from Foundation import NSSize
+    _icon = NSImage.alloc().initWithContentsOfFile_(
+        str(resource_dir() / "ui" / "menubar@2x.png"))
+    if _icon is not None:
+        _icon.setSize_(NSSize(18, 18))
+        _icon.setTemplate_(True)  # adapts to light/dark menu bar
+        status.button().setImage_(_icon)
+    else:
+        status.button().setTitle_("🎙️")
     menu = NSMenu.alloc().init()
     open_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
         "Open SayDo", "openDashboard:", "o")

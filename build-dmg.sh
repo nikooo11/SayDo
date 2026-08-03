@@ -15,6 +15,7 @@ cp -RL "$MODEL_CACHE"/*/ build/model-staging/
 
 .venv/bin/pyinstaller --noconfirm --windowed --name SayDo \
   --osx-bundle-identifier com.nikooo11.saydo \
+  --icon assets/SayDo.icns \
   --add-data "config.yaml:." \
   --add-data "build/model-staging:models/faster-whisper-tiny.en" \
   --add-data "ui:ui" \
