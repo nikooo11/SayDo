@@ -21,6 +21,9 @@ llm:
   base_url: http://localhost:11434
   temperature: 0.1
   min_words_for_cleanup: 10   # utterances under this word count skip Ollama entirely
+  # dictation never waits longer than this for cleanup — on a miss the raw
+  # transcript is injected; two misses in a row turn cleanup off for the session
+  cleanup_timeout_s: 6
   system_prompt: |
     You are a transcript cleaner. You receive raw speech-to-text output.
     Your ONLY job: remove filler words (um, uh, like, you know), fix

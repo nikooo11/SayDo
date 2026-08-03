@@ -219,6 +219,7 @@ def main():
         base = (llm.get("ollama") or {}).get("base_url", "http://localhost:11434")
         if ollama_setup.ensure_server(base) and state["cleaner"].backend != "ollama":
             state["cleaner"] = Cleaner(cfg["llm"])
+        state["cleaner"].warm()  # preload the model off the dictation path
     threading.Thread(target=_ensure_local_cleanup, daemon=True).start()
 
     import atexit

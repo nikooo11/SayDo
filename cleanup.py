@@ -75,6 +75,10 @@ class Cleaner:
         self.cfg = cfg
         self.enabled = bool(cfg.get("enabled", True))
         self.min_words = int(cfg.get("min_words_for_cleanup", 10))
+        # Dictation injects the raw transcript if cleanup can't beat this
+        # budget; two misses in a row disable cleanup for the session.
+        self.clean_timeout = float(cfg.get("cleanup_timeout_s", 6))
+        self._slow_strikes = 0
 
         api = cfg.get("api") or {}
         self.api_key = api.get("api_key") or os.environ.get("GROQ_API_KEY", "")
@@ -118,8 +122,23 @@ class Cleaner:
             return text
         try:
             if self.backend == "api":
-                return self._clean_api(text) or text
-            return self._clean_ollama(text) or text
+                out = self._clean_api(text) or text
+            else:
+                out = self._clean_ollama(text) or text
+            self._slow_strikes = 0
+            return out
+        except requests.Timeout:
+            self._slow_strikes += 1
+            if self._slow_strikes >= 2:
+                print(f"Cleanup: engine missed the {self.clean_timeout:.0f}s "
+                      "budget twice in a row — raw transcripts for this "
+                      "session. A free Groq key in Settings restores fast "
+                      "cleanup.")
+                self.backend = None
+            else:
+                print(f"Cleanup took over {self.clean_timeout:.0f}s; "
+                      "using raw transcript.")
+            return text
         except requests.RequestException as e:
             print(f"Cleanup failed ({e}); using raw transcript.")
             return text
@@ -140,7 +159,8 @@ class Cleaner:
 
     def _clean_api(self, text):
         system = self.cfg.get("system_prompt", "") + _speaker_notes()
-        return self._ask_api(system, EDIT_INSTRUCTION + text, timeout=15)
+        return self._ask_api(system, EDIT_INSTRUCTION + text,
+                             timeout=self.clean_timeout)
 
     def _ask_api(self, system, prompt, timeout=15):
         r = requests.post(
@@ -163,9 +183,10 @@ class Cleaner:
         # Small models treat bare text as something to answer, not clean —
         # the explicit edit instruction forces edit-only behavior.
         system = self.cfg.get("system_prompt", "") + _speaker_notes()
-        return self._ask_ollama(system, EDIT_INSTRUCTION + text)
+        return self._ask_ollama(system, EDIT_INSTRUCTION + text,
+                                timeout=self.clean_timeout)
 
-    def _ask_ollama(self, system, prompt):
+    def _ask_ollama(self, system, prompt, timeout=30):
         r = requests.post(
             f"{self.ollama_base}/api/generate",
             json={
@@ -174,8 +195,25 @@ class Cleaner:
                 "prompt": prompt,
                 "stream": False,
                 "think": False,  # disable reasoning mode (qwen3 etc.) — cleanup must be instant
+                "keep_alive": "60m",  # don't pay a model reload after 5 idle minutes
                 "options": {"temperature": float(self.cfg.get("temperature", 0.1))},
             },
-            timeout=30,
+            timeout=timeout,
         )
         return r.json().get("response", "").strip()
+
+    def warm(self):
+        """Preload the local model (background, boot time) so the first real
+        dictation doesn't pay the cold model load. No-op for cloud/off."""
+        if self.backend != "ollama":
+            return
+        try:
+            requests.post(
+                f"{self.ollama_base}/api/generate",
+                json={"model": self.ollama_model, "prompt": "hi",
+                      "stream": False, "think": False, "keep_alive": "60m",
+                      "options": {"num_predict": 1}},
+                timeout=120,
+            )
+        except requests.RequestException:
+            pass
