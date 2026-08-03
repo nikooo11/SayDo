@@ -133,8 +133,14 @@ class _Bridge(NSObject):
     def _dispatch(self, op, d):
         c = self.controller
         if op == "init":
+            try:
+                from Foundation import NSFullUserName
+                first_name = str(NSFullUserName()).split()[0]
+            except Exception:
+                first_name = ""
             return {
                 "version": APP_VERSION,
+                "user": first_name,
                 "config": c.cfg,
                 "status": c.status(),
                 "history": list(reversed(history.read_all())),

@@ -25,7 +25,8 @@ from Foundation import NSString
 BAR_COUNT = 24
 REC_W, REC_H = 260, 74
 IDLE_W, IDLE_H = 200, 34
-DASH_W, DASH_H = 64, 12
+DASH_W, DASH_H = 58, 8
+BOTTOM_Y = 8  # gap above the usable screen bottom (clears the Dock when shown)
 LABEL_H = 20  # bottom strip reserved for the label while recording
 
 AMBER = (0.93, 0.65, 0.25)
@@ -126,10 +127,11 @@ class Overlay:
             self._idle()
 
     def _frame(self, kind):
-        screen = NSScreen.mainScreen().frame()
+        screen = NSScreen.mainScreen()
+        frame, visible = screen.frame(), screen.visibleFrame()
         w, h = {"rec": (REC_W, REC_H), "idle": (IDLE_W, IDLE_H),
                 "dash": (DASH_W, DASH_H)}[kind]
-        return (((screen.size.width - w) / 2, 110), (w, h))
+        return (((frame.size.width - w) / 2, visible.origin.y + BOTTOM_Y), (w, h))
 
     def _animate_to(self, kind):
         # setFrame:display:animate: gives a short smooth grow/shrink

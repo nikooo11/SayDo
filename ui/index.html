@@ -114,6 +114,25 @@ h1.pg em{color:var(--amber)}
 .dategrp{color:var(--faint);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
   margin:20px 0 4px;padding-left:6px}
 
+/* home feed */
+.feed{margin-top:20px}
+.feedhead{display:flex;justify-content:space-between;align-items:center;color:var(--faint);
+  font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin:18px 2px 8px}
+.feed .feedhead:first-of-type{margin-top:0}
+.feedcard{padding:4px 18px}
+.hrow .iconbtn{opacity:0;transition:opacity .15s}
+.hrow:hover .iconbtn,.hrow .iconbtn:focus{opacity:1}
+
+/* stat stack (right rail) */
+.statstack{padding:6px 20px}
+.statstack .srow2{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:15px 0;border-bottom:1px solid var(--line)}
+.statstack .srow2:last-child{border-bottom:none}
+.statstack .n{font:400 30px/1 var(--serif)}
+.statstack .l{color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.vp{cursor:pointer;transition:border-color .18s}
+.vp:hover{border-color:rgba(232,163,61,.35)}
+
 /* help tooltips */
 .help{position:relative;display:inline-flex;align-items:center;justify-content:center;
   width:15px;height:15px;border:1px solid var(--line);border-radius:50%;color:var(--faint);
@@ -314,6 +333,12 @@ const fmtTime = ts => new Date(ts*1000).toLocaleTimeString([], {hour:'numeric', 
 const KEYSYM = {ctrl:'⌃',cmd:'⌘',alt:'⌥',shift:'⇧',ctrl_r:'⌃ right',cmd_r:'⌘ right',alt_r:'⌥ right',f13:'F13'};
 const prettyChord = k => (k||'').split('+').map(n => KEYSYM[n.trim()] || n.trim()).join(' + ');
 const fmtDate = ts => new Date(ts*1000).toLocaleDateString([], {month:'long', day:'numeric', year:'numeric'});
+const fmtDay = ts => {
+  const d = new Date(ts*1000), now = new Date();
+  const startOf = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(now) - startOf(d)) / 86400000);
+  return diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : fmtDate(ts);
+};
 
 /* ── nav + transitions ─────────────────── */
 function buildNav() {
@@ -373,10 +398,19 @@ welcome() {
 
 dictation() {
   const st = S.stats, v = st.voice;
-  const recent = S.history.slice(0, 5);
+  const recent = S.history.slice(0, 8);
+  const h = new Date().getHours();
+  const greet = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  const who = S.user ? `, <em>${esc(S.user)}</em>` : `, <em>you</em>`;
+  const groups = [];
+  for (const item of recent) {
+    const day = fmtDay(item.ts);
+    if (!groups.length || groups[groups.length - 1].day !== day) groups.push({day, items: []});
+    groups[groups.length - 1].items.push(item);
+  }
   return `
   <div class="reveal" style="--i:0">
-    <h1 class="pg">Ready when <em>you</em> are.</h1>
+    <h1 class="pg">${greet}${who}.</h1>
     <p class="sub">Everything below happened on this Mac. Nothing leaves it.</p>
   </div>
   <div class="row2">
@@ -392,23 +426,31 @@ dictation() {
           ${S.status.cleanup === 'off' ? `<span class="pill" style="cursor:pointer;border-color:rgba(232,163,61,.45)" onclick="go('settings')">Cleanup off. Set up →</span>` : ''}
         </div>
       </div>
-      <div class="card reveal" style="--i:2;margin-top:18px">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-          <span class="k">Recent dictations</span>
-          <button class="iconbtn" onclick="go('history')">View all →</button>
-        </div>
-        <div id="recentList">${recent.length ? recent.map(hRow).join('') : '<div class="empty">Hold the chord and say something. It appears here.</div>'}</div>
+      <div class="feed reveal" style="--i:2" id="recentList">
+        ${groups.length ? groups.map(g => `
+          <div class="feedhead"><span>${g.day}</span>
+            ${g === groups[0] ? `<button class="iconbtn" onclick="go('history')" title="Open full history">View all →</button>` : ''}</div>
+          <div class="card feedcard">${g.items.map(hRow).join('')}</div>`).join('')
+        : `<div class="feedhead"><span>Today</span></div>
+           <div class="card feedcard"><div class="empty">Hold the chord and say something. It appears here.</div></div>`}
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px">
-      <div class="card stat reveal" style="--i:2"><div class="n">${fmtN(st.total_words)}</div><div class="l">Total words</div></div>
-      <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'·'}</div><div class="l">Words / minute</div></div>
-      <div class="card stat reveal" style="--i:4"><div class="n">${st.streak}<small> day${st.streak===1?'':'s'}</small></div><div class="l">Streak</div></div>
-      <div class="card reveal" style="--i:5">
+      <div class="card statstack reveal" style="--i:2">
+        <div class="srow2"><span class="n">${fmtN(st.total_words)}</span><span class="l">total words</span></div>
+        <div class="srow2"><span class="n">${st.wpm||'·'}</span><span class="l">words / minute</span></div>
+        <div class="srow2"><span class="n">${st.streak}</span><span class="l">day streak</span></div>
+      </div>
+      <div class="card vp reveal" style="--i:4" onclick="go('insights')">
         <div class="lab" style="color:var(--faint);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px">Voice profile</div>
-        <div style="font:400 21px var(--serif)">${esc(v.profile)}</div>
-        <div style="color:var(--muted);font-size:12px;margin-top:5px">${esc(v.profile_blurb)}</div>
-        <button class="iconbtn" style="margin-top:8px;padding-left:0" onclick="go('insights')">Open insights →</button>
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+          <div>
+            <div style="font:400 21px var(--serif)">${esc(v.profile)}</div>
+            <div style="color:var(--muted);font-size:12px;margin-top:5px">${esc(v.profile_blurb)}</div>
+            <span class="iconbtn" style="margin-top:8px;padding-left:0;display:inline-block">Open insights →</span>
+          </div>
+          <div style="font:italic 46px/0.6 var(--serif);color:rgba(232,163,61,.3);padding-top:14px">”</div>
+        </div>
       </div>
     </div>
   </div>`;
