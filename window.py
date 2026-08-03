@@ -268,6 +268,11 @@ class Dashboard:
             ((160, 120), (1080, 700)), style, NSBackingStoreBuffered, False)
         self.window.setTitle_("SayDo")
         self.window.setTitlebarAppearsTransparent_(True)
+        self.window.setTitleVisibility_(1)  # hidden: no text in the bar
+        from AppKit import NSColor
+        # match the page background so the titlebar merges with the content
+        self.window.setBackgroundColor_(
+            NSColor.colorWithSRGBRed_green_blue_alpha_(0.047, 0.047, 0.059, 1.0))
         self.window.setMinSize_((860, 560))
         self.window.setReleasedWhenClosed_(False)
 
