@@ -134,13 +134,13 @@ def _voice_insights(entries, wpm):
         profile, blurb = "Warming Up", "Dictate a few times and your voice profile appears here."
     elif avg >= 35:
         profile = "Night Narrator" if night else "Long-form Narrator"
-        blurb = "You think in full paragraphs — long, complete thoughts in a single take."
+        blurb = "You think in full paragraphs: long, complete thoughts in a single take."
     elif avg >= 15:
         profile = "Night Drafter" if night else "Steady Drafter"
         blurb = "You dictate in measured, sentence-sized passes and build text steadily."
     else:
         profile = "Rapid-fire Commander"
-        blurb = "Short, decisive bursts — you use your voice like a command line."
+        blurb = "Short, decisive bursts. You use your voice like a command line."
 
     return {
         "profile": profile,

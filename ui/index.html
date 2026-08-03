@@ -114,6 +114,17 @@ h1.pg em{color:var(--amber)}
 .dategrp{color:var(--faint);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
   margin:20px 0 4px;padding-left:6px}
 
+/* help tooltips */
+.help{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border:1px solid var(--line);border-radius:50%;color:var(--faint);
+  font-size:9.5px;font-weight:600;margin-left:7px;vertical-align:2px;cursor:default;flex:none}
+.help:hover,.help:focus{color:var(--amber);border-color:rgba(232,163,61,.5);outline:none}
+.help .tip{position:absolute;left:0;bottom:calc(100% + 9px);transform:translateY(4px);
+  width:260px;background:#1d1d24;border:1px solid var(--line);border-radius:10px;padding:10px 13px;
+  font-size:12px;line-height:1.5;font-weight:400;color:#d6d4cd;opacity:0;pointer-events:none;
+  transition:opacity .18s, transform .18s;z-index:60;box-shadow:0 10px 26px rgba(0,0,0,.55)}
+.help:hover .tip,.help:focus .tip{opacity:1;transform:none}
+
 /* bar chart */
 .chart{display:flex;align-items:flex-end;gap:7px;height:120px;padding:6px 4px 0}
 .chart .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end}
@@ -378,7 +389,7 @@ dictation() {
         <div class="status">
           <span class="pill" id="recpill"><span class="rec"></span><span id="recword">Standing by</span></span>
           <span class="pill"><span class="kbd" id="hotkeyLabel"></span>&nbsp;${S.status.mode === 'hold' ? 'hold to talk' : 'press to toggle'}</span>
-          ${S.status.cleanup === 'off' ? `<span class="pill" style="cursor:pointer;border-color:rgba(232,163,61,.45)" onclick="go('settings')">Cleanup off — set up →</span>` : ''}
+          ${S.status.cleanup === 'off' ? `<span class="pill" style="cursor:pointer;border-color:rgba(232,163,61,.45)" onclick="go('settings')">Cleanup off. Set up →</span>` : ''}
         </div>
       </div>
       <div class="card reveal" style="--i:2;margin-top:18px">
@@ -386,12 +397,12 @@ dictation() {
           <span class="k">Recent dictations</span>
           <button class="iconbtn" onclick="go('history')">View all →</button>
         </div>
-        <div id="recentList">${recent.length ? recent.map(hRow).join('') : '<div class="empty">Hold the chord and say something — it appears here.</div>'}</div>
+        <div id="recentList">${recent.length ? recent.map(hRow).join('') : '<div class="empty">Hold the chord and say something. It appears here.</div>'}</div>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px">
       <div class="card stat reveal" style="--i:2"><div class="n">${fmtN(st.total_words)}</div><div class="l">Total words</div></div>
-      <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'—'}</div><div class="l">Words / minute</div></div>
+      <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'·'}</div><div class="l">Words / minute</div></div>
       <div class="card stat reveal" style="--i:4"><div class="n">${st.streak}<small> day${st.streak===1?'':'s'}</small></div><div class="l">Streak</div></div>
       <div class="card reveal" style="--i:5">
         <div class="lab" style="color:var(--faint);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px">Voice profile</div>
@@ -420,11 +431,11 @@ insights() {
   const mc = S.most_corrected;
   return `
   <div class="reveal" style="--i:0"><h1 class="pg">Insights</h1>
-  <p class="sub">Computed on this Mac from your local history — never uploaded.</p></div>
+  <p class="sub">Computed on this Mac from your local history. Never uploaded.</p></div>
   <div class="tiles">
     <div class="card stat reveal" style="--i:1"><div class="n">${fmtN(st.total_words)}</div><div class="l">Total words</div></div>
     <div class="card stat reveal" style="--i:2"><div class="n">${st.sessions}</div><div class="l">Dictations</div></div>
-    <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'—'}</div><div class="l">Words / minute</div></div>
+    <div class="card stat reveal" style="--i:3"><div class="n">${st.wpm||'·'}</div><div class="l">Words / minute</div></div>
     <div class="card stat reveal" style="--i:4"><div class="n">${st.streak}<small> d</small></div><div class="l">Streak</div></div>
   </div>
   <div class="card reveal" style="--i:5;margin-bottom:18px">
@@ -455,10 +466,10 @@ dictionary() {
   <div class="reveal" style="--i:0"><h1 class="pg">Dictionary</h1>
   <p class="sub">SayDo spells the way you do. Custom terms steer recognition; misspelling pairs are fixed automatically after transcription.</p></div>
   <div class="card reveal" style="--i:1;margin-bottom:16px">
-    <div class="toggleRow"><div class="sw" id="mispSw"></div><span>Correct a misspelling — map what the engine hears to what you mean</span></div>
+    <div class="toggleRow"><div class="sw" id="mispSw"></div><span>Correct a misspelling: map what the engine hears to what you mean</span></div>
     <div class="addbar" id="dictAdd">
-      <input id="dw" placeholder="Word or name — e.g. SupaBase">
-      <input id="dm" placeholder="What it gets heard as — e.g. super base" style="display:none">
+      <input id="dw" placeholder="Word or name, e.g. SupaBase">
+      <input id="dm" placeholder="What it gets heard as, e.g. super base" style="display:none">
       <button class="btn" id="dAdd">Add word</button>
     </div>
   </div>
@@ -471,8 +482,8 @@ snippets() {
   <p class="sub">The stuff you shouldn't have to re-type. Say the trigger phrase; the saved text is typed instead.</p></div>
   <div class="card reveal" style="--i:1;margin-bottom:16px">
     <div class="addbar" style="flex-direction:column">
-      <input id="strig" placeholder='Trigger phrase — e.g. "my email address"'>
-      <textarea id="sexp" rows="3" placeholder="Expands to — e.g. nikostavros10@gmail.com"></textarea>
+      <input id="strig" placeholder='Trigger phrase, e.g. "my email address"'>
+      <textarea id="sexp" rows="3" placeholder="Expands to, e.g. nikostavros10@gmail.com"></textarea>
       <div style="display:flex;justify-content:flex-end"><button class="btn" id="sAdd">Save snippet</button></div>
     </div>
   </div>
@@ -503,39 +514,47 @@ scratchpad() {
 settings() {
   const c = S.config, ui = c.ui, llm = c.llm;
   const sw = (id, on) => `<div class="sw ${on?'on':''}" id="${id}"></div>`;
+  const hp = t => `<span class="help" tabindex="0">?<span class="tip">${t}</span></span>`;
   return `
   <div class="reveal" style="--i:0"><h1 class="pg">Settings</h1>
   <p class="sub">Engine changes restart SayDo automatically. Everything else applies instantly.</p></div>
   <div class="set">
     <div class="sec reveal" style="--i:1">General</div>
-    <div class="card srow reveal" style="--i:1"><div class="sl"><div class="st">Shortcut</div>
-      <div class="sd">Click, then press the keys you want — modifiers (⌃ ⌘ ⌥ ⇧, left or right) or F13. Esc cancels.</div></div>
+    <div class="card srow reveal" style="--i:1"><div class="sl"><div class="st">Shortcut
+      ${hp('The key combo that starts dictation. Hold it down, talk, let go. It works while any app is in front.')}</div>
+      <div class="sd">Click, then press the keys you want. Modifiers (⌃ ⌘ ⌥ ⇧, left or right) or F13. Esc cancels.</div></div>
       <button class="hkbtn" id="hkBtn"></button></div>
-    <div class="card srow reveal" style="--i:2"><div class="sl"><div class="st">Mode</div>
+    <div class="card srow reveal" style="--i:2"><div class="sl"><div class="st">Mode
+      ${hp('Hold means SayDo listens only while the keys are down. Toggle means press once to start and press again to stop.')}</div>
       <div class="sd">Hold: record while held. Toggle: press to start, press to stop.</div></div>
       <select id="setMode"><option value="hold" ${c.hotkey.mode==='hold'?'selected':''}>Hold</option>
       <option value="toggle" ${c.hotkey.mode==='toggle'?'selected':''}>Toggle</option></select></div>
-    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Microphone</div>
+    <div class="card srow reveal" style="--i:3"><div class="sl"><div class="st">Microphone
+      ${hp('System default follows whatever your Mac is using right now, including AirPods when they connect. Pick a specific mic only if you always want that one.')}</div>
       <div class="sd">Which input SayDo listens to. The bar below shows the live signal.</div></div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:190px">
         <select id="setMic"><option value="">System default</option></select>
         <div class="meter"><div id="micMeter"></div></div></div></div>
-    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Accuracy</div>
+    <div class="card srow reveal" style="--i:4"><div class="sl"><div class="st">Accuracy
+      ${hp('The speech model that turns your voice into text. tiny.en is nearly instant. Bigger models catch more words but make you wait longer after you stop talking.')}</div>
       <div class="sd">Bigger models are more accurate and slower. tiny.en is instant; small is a good step up.</div></div>
       <select id="setModel">${['tiny.en','base','small','medium','large-v3'].map(m =>
         `<option ${c.stt.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
 
     <div class="sec reveal" style="--i:5">Cleanup</div>
-    <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Cleanup engine</div>
+    <div class="card srow reveal" style="--i:5"><div class="sl"><div class="st">Cleanup engine
+      ${hp('Cleanup fixes punctuation and removes filler words like um. Auto picks the best available option: the cloud API if you added a key, otherwise the local engine on this Mac, otherwise it types exactly what you said.')}</div>
       <div class="sd">Auto: cloud API if a key is set, else local Ollama, else raw transcripts.</div></div>
       <select id="setLlmMode">${['auto','api','ollama'].map(m =>
         `<option ${ (llm.mode||'auto')===m?'selected':''}>${m}</option>`).join('')}</select></div>
-    <div class="card srow reveal" style="--i:6"><div class="sl"><div class="st">Groq API key</div>
-      <div class="sd">Free at console.groq.com. Cleanup only — your audio never goes anywhere.</div></div>
+    <div class="card srow reveal" style="--i:6"><div class="sl"><div class="st">Groq API key
+      ${hp('Optional. A free account at console.groq.com gives you a key that makes cleanup faster and smarter. Only the finished text is sent for cleanup, never your voice.')}</div>
+      <div class="sd">Free at console.groq.com. Cleanup only. Your audio never goes anywhere.</div></div>
       <input id="setKeyApi" type="password" placeholder="gsk_…" value="${esc(llm.api?.api_key||'')}"></div>
     <div class="card reveal" style="--i:6" id="localEngineCard">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:20px">
-        <div class="sl"><div class="st">Local engine</div>
+        <div class="sl"><div class="st">Local engine
+          ${hp('A small AI that runs entirely on this Mac and cleans up your transcripts. Nothing leaves your computer. One click downloads everything it needs.')}</div>
           <div class="sd" id="leDetail">Checking…</div></div>
         <button class="btn" id="leBtn" style="display:none">Set up local cleanup</button>
       </div>
@@ -550,7 +569,8 @@ settings() {
 
     <div class="sec reveal" style="--i:7">Per-app modes</div>
     <div class="card reveal" style="--i:7">
-      <div class="sl" style="margin-bottom:6px"><div class="st">Dictation style by app</div>
+      <div class="sl" style="margin-bottom:6px"><div class="st">Dictation style by app
+        ${hp('Rules that change how text is typed in certain apps. Example: add Terminal with the code style, and dictations there skip cleanup and drop the final period. Raw types exactly what you said, with only your dictionary fixes.')}</div>
         <div class="sd">First matching rule wins; everything else stays standard. Code skips cleanup and drops the
         trailing period. Raw applies dictionary corrections only.</div></div>
       <div id="amList"></div>
@@ -564,13 +584,17 @@ settings() {
     </div>
 
     <div class="sec reveal" style="--i:8">App</div>
-    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Show dictation bar at all times</div>
+    <div class="card srow reveal" style="--i:8"><div class="sl"><div class="st">Show dictation bar at all times
+      ${hp('The little dash at the bottom edge of your screen. Hover it to see your shortcut. It grows while you dictate, and clicking it opens this window.')}</div>
       <div class="sd">The floating pill at the bottom of the screen with your shortcut.</div></div>${sw('swBar', ui.flow_bar)}</div>
-    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Dictation sounds</div>
+    <div class="card srow reveal" style="--i:9"><div class="sl"><div class="st">Dictation sounds
+      ${hp('A quiet tick when recording starts and another when it stops, so you know SayDo heard you without looking.')}</div>
       <div class="sd">A soft tick when recording starts and stops.</div></div>${sw('swSnd', ui.sounds)}</div>
-    <div class="card srow reveal" style="--i:10"><div class="sl"><div class="st">Mute music while dictating</div>
+    <div class="card srow reveal" style="--i:10"><div class="sl"><div class="st">Mute music while dictating
+      ${hp('If Music or Spotify is playing, it pauses while you talk and resumes when you finish, so your dictation stays clean.')}</div>
       <div class="sd">Pauses Music or Spotify while you talk, resumes after.</div></div>${sw('swMus', ui.mute_music)}</div>
-    <div class="card srow reveal" style="--i:11"><div class="sl"><div class="st">Launch at login</div>
+    <div class="card srow reveal" style="--i:11"><div class="sl"><div class="st">Launch at login
+      ${hp('SayDo starts quietly in the background when you turn on your Mac, so the shortcut always works without opening anything.')}</div>
       <div class="sd">Start SayDo automatically when you log in.</div></div>${sw('swLog', S.launch_login)}</div>
 
     <div class="reveal" style="--i:12;display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
@@ -647,7 +671,7 @@ dictionary() {
         ${e.misspelling ? `<div class="misp">heard as <b>${esc(e.misspelling)}</b></div>` : ''}</span>
         <span class="hits">${e.hits ? e.hits + ' fixes' : ''}</span>
         <button class="iconbtn" data-w="${esc(e.word)}">Remove</button></div>`).join('')
-      : '<div class="empty">Add names, jargon, product terms — anything the engine should spell your way.</div>';
+      : '<div class="empty">Add names, jargon, product terms. Anything the engine should spell your way.</div>';
     l.querySelectorAll('.iconbtn').forEach(b => b.onclick = async () => {
       S.dictionary = (await call('dict.remove', {word: b.dataset.w})).dictionary; draw();
     });
@@ -668,7 +692,7 @@ snippets() {
         <div class="misp">→ ${esc(s.expansion.length > 90 ? s.expansion.slice(0,90) + '…' : s.expansion)}</div></span>
         <span class="hits">${s.hits ? s.hits + ' uses' : ''}</span>
         <button class="iconbtn" data-t="${esc(s.trigger)}">Remove</button></div>`).join('')
-      : '<div class="empty">Save an email, a link, an intro — then just say the trigger.</div>';
+      : '<div class="empty">Save an email, a link, an intro. Then just say the trigger.</div>';
     l.querySelectorAll('.iconbtn').forEach(b => b.onclick = async () => {
       S.snippets = (await call('snip.remove', {trigger: b.dataset.t})).snippets; draw();
     });
@@ -747,7 +771,7 @@ settings() {
     leProg.style.display = 'none';
     if (st.model && st.running) {
       leDetail.textContent = st.backend === 'ollama'
-        ? 'Local cleanup active — runs fully offline.'
+        ? 'Local cleanup active. Runs fully offline.'
         : 'Installed and ready as the offline fallback.';
       leBtn.style.display = 'none';
     } else {
@@ -843,7 +867,7 @@ settings() {
       `<div class="lrow"><span class="main-t">name contains <b>${esc(r.match)}</b></span>
         <select class="amSel" data-i="${i}" style="min-width:110px">${amOpts(r.mode)}</select>
         <button class="iconbtn" data-i="${i}">Remove</button></div>`).join('')
-      : '<div class="empty" style="padding:14px 0">No rules yet — every app gets standard cleanup.</div>';
+      : '<div class="empty" style="padding:14px 0">No rules yet. Every app gets standard cleanup.</div>';
     l.querySelectorAll('.amSel').forEach(s =>
       s.onchange = () => { amRules[+s.dataset.i].mode = s.value; });
     l.querySelectorAll('.iconbtn').forEach(b =>
@@ -883,7 +907,7 @@ settings() {
     Object.assign(S.config.stt, partial.stt);
     S.config.app_modes = {rules: amRules.map(r => ({...r}))};
     if (partial.audio) Object.assign(S.config.audio, partial.audio);
-    toast(r.restarting ? 'Saved — <span class="amber">restarting the engine…</span>' : 'Saved');
+    toast(r.restarting ? 'Saved. <span class="amber">Restarting the engine…</span>' : 'Saved');
   };
 },
 };
